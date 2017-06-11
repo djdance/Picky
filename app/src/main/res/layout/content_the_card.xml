@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.v4.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    app:layout_behavior="@string/appbar_scrolling_view_behavior"
+    tools:context="ru.orgcom.picky.TheCardActivity"
+    tools:showIn="@layout/activity_the_card">
+
+    <LinearLayout
+        android:id="@+id/containerLayout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+
+        <android.support.design.widget.TextInputLayout
+            android:id="@+id/cardTitleTextInputLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone">
+
+            <EditText
+                android:id="@+id/cardTitleEditText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Название карточки (необязательно)"
+                android:imeOptions="actionDone"
+                android:inputType="text"
+                android:maxLines="1"
+                android:textSize="20dp"
+                android:singleLine="true"/>
+
+        </android.support.design.widget.TextInputLayout>
+
+        <ImageView
+            android:id="@+id/ivProductImageFull"
+            android:layout_width="400dp"
+            android:layout_height="400dp"
+            android:layout_gravity="center"
+            android:layout_marginLeft="100dp"
+            android:layout_marginRight="100dp"
+            android:layout_marginTop="20dp"
+            android:adjustViewBounds="true"
+            android:clickable="true"
+            android:onClick="onClick"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ico"
+            android:background="@drawable/cloudbox_green"
+            android:transitionName="currentCardPic" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="50dp"
+            android:layout_marginRight="50dp"
+            android:layout_marginTop="30dp"
+            android:background="@drawable/cloudbox_blue"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="5dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignParentLeft="true"
+                android:layout_centerVertical="true"
+                android:layout_marginBottom="10dp"
+                android:layout_marginLeft="15dp"
+                android:text="Анонс картинки (Посмотри, это - ...)"
+                android:textColor="#ffffff"
+                android:textSize="25dp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentRight="true"
+                android:layout_centerVertical="true"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <ImageButton
+                    android:id="@+id/recButton1"
+                    android:layout_width="75dp"
+                    android:layout_height="75dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/cloudcircle_selector"
+                    android:clickable="true"
+                    android:onClick="onClick"
+                    android:src="@android:drawable/ic_btn_speak_now" />
+
+                <ImageButton
+                    android:id="@+id/playButton1"
+                    android:layout_width="75dp"
+                    android:layout_height="75dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/cloudcircle_selector"
+                    android:clickable="true"
+                    android:onClick="onClick"
+                    android:src="@android:drawable/ic_media_play" />
+
+                <ImageButton
+                    android:id="@+id/delButton1"
+                    android:layout_width="75dp"
+                    android:layout_height="75dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/cloudcircle_selector"
+                    android:clickable="true"
+                    android:onClick="onClick"
+                    android:src="@android:drawable/ic_delete" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="50dp"
+            android:layout_marginRight="50dp"
+            android:layout_marginTop="30dp"
+            android:background="@drawable/cloudbox_yellow"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="5dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignParentLeft="true"
+                android:layout_centerVertical="true"
+                android:layout_marginBottom="10dp"
+                android:layout_marginLeft="15dp"
+                android:text="Вопрос о картинке (Покажи, где ...)"
+                android:textColor="#ffffff"
+                android:textSize="25dp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentRight="true"
+                android:layout_centerVertical="true"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <ImageButton
+                    android:id="@+id/recButton2"
+                    android:layout_width="75dp"
+                    android:layout_height="75dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/cloudcircle_selector"
+                    android:clickable="true"
+                    android:onClick="onClick"
+                    android:src="@android:drawable/ic_btn_speak_now" />
+
+                <ImageButton
+                    android:id="@+id/playButton2"
+                    android:layout_width="75dp"
+                    android:layout_height="75dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/cloudcircle_selector"
+                    android:clickable="true"
+                    android:onClick="onClick"
+                    android:src="@android:drawable/ic_media_play" />
+
+                <ImageButton
+                    android:id="@+id/delButton2"
+                    android:layout_width="75dp"
+                    android:layout_height="75dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/cloudcircle_selector"
+                    android:clickable="true"
+                    android:onClick="onClick"
+                    android:src="@android:drawable/ic_delete" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="50dp"
+            android:layout_marginRight="50dp"
+            android:layout_marginTop="30dp"
+            android:background="@drawable/cloudbox_red"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="5dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignParentLeft="true"
+                android:layout_centerVertical="true"
+                android:layout_marginBottom="10dp"
+                android:layout_marginLeft="15dp"
+                android:text="Неправильный выбор (Нет, это не ...). Не повторяйте тут вопрос!"
+                android:textColor="#ffffff"
+                android:textSize="25dp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentRight="true"
+                android:layout_centerVertical="true"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <ImageButton
+                    android:id="@+id/recButton3"
+                    android:layout_width="75dp"
+                    android:layout_height="75dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/cloudcircle_selector"
+                    android:clickable="true"
+                    android:onClick="onClick"
+                    android:src="@android:drawable/ic_btn_speak_now" />
+
+                <ImageButton
+                    android:id="@+id/playButton3"
+                    android:layout_width="75dp"
+                    android:layout_height="75dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/cloudcircle_selector"
+                    android:clickable="true"
+                    android:onClick="onClick"
+                    android:src="@android:drawable/ic_media_play" />
+
+                <ImageButton
+                    android:id="@+id/delButton3"
+                    android:layout_width="75dp"
+                    android:layout_height="75dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/cloudcircle_selector"
+                    android:clickable="true"
+                    android:onClick="onClick"
+                    android:src="@android:drawable/ic_delete" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="50dp"
+            android:layout_marginRight="50dp"
+            android:layout_marginTop="30dp"
+            android:background="@drawable/cloudbox_green"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="5dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_alignParentLeft="true"
+                android:layout_centerVertical="true"
+                android:layout_marginBottom="10dp"
+                android:layout_marginLeft="15dp"
+                android:text="Верный ответ (Правильно, это ...)"
+                android:textColor="#ffffff"
+                android:textSize="25dp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentRight="true"
+                android:layout_centerVertical="true"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <ImageButton
+                    android:id="@+id/recButton4"
+                    android:layout_width="75dp"
+                    android:layout_height="75dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/cloudcircle_selector"
+                    android:clickable="true"
+                    android:onClick="onClick"
+                    android:src="@android:drawable/ic_btn_speak_now" />
+
+                <ImageButton
+                    android:id="@+id/playButton4"
+                    android:layout_width="75dp"
+                    android:layout_height="75dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/cloudcircle_selector"
+                    android:clickable="true"
+                    android:onClick="onClick"
+                    android:src="@android:drawable/ic_media_play" />
+
+                <ImageButton
+                    android:id="@+id/delButton4"
+                    android:layout_width="75dp"
+                    android:layout_height="75dp"
+                    android:layout_margin="3dp"
+                    android:background="@drawable/cloudcircle_selector"
+                    android:clickable="true"
+                    android:onClick="onClick"
+                    android:src="@android:drawable/ic_delete" />
+            </LinearLayout>
+        </LinearLayout>
+
+
+        <Button
+            android:id="@+id/saveButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="50dp"
+            android:clickable="true"
+            android:onClick="onClick"
+            android:text="Сохранить и выйти"
+            android:textColor="#ffffff"
+            android:paddingLeft="15dp"
+            android:paddingRight="25dp"
+            android:textSize="30dp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:background="@drawable/cloudbox_selector" />
+
+
+    </LinearLayout>
+
+</android.support.v4.widget.NestedScrollView>

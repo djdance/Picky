@@ -2,30 +2,37 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
 
     <group android:checkableBehavior="single">
-        <item
+        <!--item
             android:id="@+id/nav_gallery"
             android:icon="@drawable/ic_menu_gallery"
-            android:title="Создание" />
+            android:title="Создание карточек" /-->
         <item
-            android:id="@+id/nav_slideshow"
+            android:id="@+id/nav_repetitor"
             android:icon="@drawable/ic_menu_slideshow"
-            android:title="Тесты" />
+            android:title="Репетитор картинок"
+            android:enabled="false"/>
         <item
-            android:id="@+id/nav_manage"
-            android:icon="@drawable/ic_menu_manage"
-            android:title="Настройки" />
+            android:id="@+id/nav_tester"
+            android:icon="@android:drawable/ic_menu_search"
+            android:title="Контроль знаний" />
+        <item
+            android:id="@+id/nav_share"
+            android:icon="@drawable/ic_menu_share"
+            android:title="Протоколы тестов"
+            android:enabled="false"/>
     </group>
-
-    <item android:title="Результаты">
+    <item android:title="Прочее">
         <menu>
             <item
-                android:id="@+id/nav_share"
-                android:icon="@drawable/ic_menu_share"
-                android:title="Таблицы тестов" />
+                android:id="@+id/nav_manage"
+                android:icon="@drawable/ic_menu_manage"
+                android:title="Настройки"
+                android:enabled="false"/>
             <item
-                android:id="@+id/nav_send"
-                android:icon="@drawable/ic_menu_send"
-                android:title="Отправить на сервер" />
+                android:id="@+id/nav_terms"
+                android:icon="@android:drawable/ic_dialog_info"
+                android:title="Конфиденциальность"
+                android:enabled="false"/>
         </menu>
     </item>
 

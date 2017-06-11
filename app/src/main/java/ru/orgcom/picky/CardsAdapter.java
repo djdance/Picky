@@ -7,7 +7,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.net.Uri;
 import android.support.v4.content.LocalBroadcastManager;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -15,9 +17,10 @@ import android.view.animation.BounceInterpolator;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-
 import java.util.ArrayList;
 
 public class CardsAdapter extends BaseAdapter {
@@ -26,6 +29,7 @@ public class CardsAdapter extends BaseAdapter {
     private ArrayList<CardsListItem> cardsListItems;
     private LayoutInflater mInflater;
     Intent intentOut=null;
+    public boolean purgeMode=false;
 
     public CardsAdapter(Context context, ArrayList<CardsListItem> cardsListItems){
         this.context = context;
@@ -68,32 +72,36 @@ public class CardsAdapter extends BaseAdapter {
 
             int[] iid = new int[1];
             iid[0] = cardsListItems.get(position).id;
+            convertView.findViewById(R.id.cloudOuterL).setTag(iid);
 
             ((TextView) convertView.findViewById(R.id.textViewSystemName)).setText(cardsListItems.get(position).title);
+            if (cardsListItems.get(position).pic!=null && !cardsListItems.get(position).pic.equals(""))
+                try {
+                    //Log.d("djd","CardsAdapter: pic="+cardsListItems.get(position).pic);
+                    ((ImageView) convertView.findViewById(R.id.cardIco)).setImageURI(Uri.parse(cardsListItems.get(position).pic));
+                    //Glide.with(context).load(Uri.parse(cardsListItems.get(position).pic)).into(((ImageView) convertView.findViewById(R.id.cardIco)));
+                } catch (Exception e) {
+                    Log.e("djd",""+e);
+                }
+            else
+                ((ImageView) convertView.findViewById(R.id.cardIco)).setImageResource(R.drawable.ico);
 
-            convertView.findViewById(R.id.systemListItemLL1).setTag(iid);
-            convertView.findViewById(R.id.systemListItemLL1).setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    int[] iid = (int[]) view.getTag();
-                    //Log.d("djd","iid="+iid[0]);
-                    intentOut = new Intent("pickyCardsSelectorCall");
-                    intentOut.putExtra("id", iid[0]);
-                    animateMe(view);
-                }
-            });
-            convertView.findViewById(R.id.deleteButton).setTag(iid);
-            convertView.findViewById(R.id.deleteButton).setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    int[] iid = (int[]) view.getTag();
-                    //Log.d("djd","iid="+iid[0]);
-                    intentOut = new Intent("pickyCardsSelectorCall");
-                    intentOut.putExtra("id", iid[0]);
-                    intentOut.putExtra("delete",true);
-                    animateMe(view);
-                }
-            });
+            if (purgeMode) {
+                convertView.findViewById(R.id.deleteButton).setVisibility(View.VISIBLE);
+                convertView.findViewById(R.id.deleteButton).setTag(iid);
+                convertView.findViewById(R.id.deleteButton).setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        int[] iid = (int[]) view.getTag();
+                        //Log.d("djd","iid="+iid[0]);
+                        intentOut = new Intent("pickyCardsSelectorCall");
+                        intentOut.putExtra("id", iid[0]);
+                        intentOut.putExtra("delete",true);
+                        animateMe(view);
+                    }
+                });
+            }else
+                convertView.findViewById(R.id.deleteButton).setVisibility(View.GONE);
         }
 
         return convertView;

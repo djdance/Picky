@@ -1,153 +1,332 @@
 package ru.orgcom.picky;
 
+import android.Manifest;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.TargetApi;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.support.annotation.NonNull;
+import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Color;
+import android.media.AudioFormat;
+import android.media.AudioManager;
+import android.media.MediaRecorder;
+import android.media.SoundPool;
+import android.os.Environment;
+import android.os.SystemClock;
+import android.preference.PreferenceManager;
+import android.speech.tts.TextToSpeech;
+import android.support.design.widget.AppBarLayout;
+import android.support.design.widget.CollapsingToolbarLayout;
+import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.app.LoaderManager.LoaderCallbacks;
 
-import android.content.CursorLoader;
-import android.content.Loader;
 import android.database.Cursor;
 import android.net.Uri;
-import android.os.AsyncTask;
 
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.ContactsContract;
-import android.text.TextUtils;
+import android.support.v7.widget.Toolbar;
+import android.transition.Fade;
+import android.transition.Slide;
+import android.transition.TransitionManager;
+import android.util.DisplayMetrics;
+import android.util.Log;
 import android.view.KeyEvent;
+import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
-import android.view.inputmethod.EditorInfo;
-import android.widget.ArrayAdapter;
-import android.widget.AutoCompleteTextView;
-import android.widget.Button;
+import android.view.ViewGroup;
+import android.view.animation.Animation;
+import android.view.animation.RotateAnimation;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.nguyenhoanglam.imagepicker.activity.ImagePicker;
+import com.nguyenhoanglam.imagepicker.activity.ImagePickerActivity;
+import com.nguyenhoanglam.imagepicker.model.Image;
+
+import java.io.File;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Date;
+import java.util.Locale;
 
-import static android.Manifest.permission.READ_CONTACTS;
+import omrecorder.AudioChunk;
+import omrecorder.AudioSource;
+import omrecorder.OmRecorder;
+import omrecorder.PullTransport;
+import omrecorder.Recorder;
+import omrecorder.WriteAction;
 
-/**
- * A login screen that offers login via email/password.
- */
-public class TheCardActivity extends AppCompatActivity implements LoaderCallbacks<Cursor> {
+public class TheCardActivity extends AppCompatActivity implements OnClickListener, AppBarLayout.OnOffsetChangedListener {
+    String TAG = "djd";
+    SharedPreferences prefs;
+    public static SQLiteDatabase db;
+    int dispWidth, dispHeight;
+    float density;
 
-    /**
-     * Id to identity READ_CONTACTS permission request.
-     */
-    private static final int REQUEST_READ_CONTACTS = 0;
-
-    /**
-     * A dummy authentication store containing known user names and passwords.
-     * TODO: remove after connecting to a real authentication system.
-     */
-    private static final String[] DUMMY_CREDENTIALS = new String[]{
-            "foo@example.com:hello", "bar@example.com:world"
-    };
-    /**
-     * Keep track of the login task to ensure we can cancel it if requested.
-     */
-    private UserLoginTask mAuthTask = null;
-
-    // UI references.
-    private AutoCompleteTextView mEmailView;
-    private EditText mPasswordView;
-    private View mProgressView;
-    private View mLoginFormView;
+    View lastViewClicked =null;
+    ProgressBar mProgressView;
+    String cardTitle="";
+    int cardID=0;
+    FloatingActionButton fab;
+    CollapsingToolbarLayout collapsingToolbarLayout;
+    Recorder recorder=null;
+    SoundPool mSoundPool=null;
+    int soundAnons,soundQuestion,soundWrong,soundRight;
+    TextToSpeech tts=null;
+    boolean ttsInited=false,utteranceDone=true;
+    BroadcastReceiver brTTS=null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread thread, Throwable throwable) {
+                //Log.d(TAG, "exception: " + this.getClass().getName() + ", " + throwable.toString());
+                final Writer result = new StringWriter();
+                final PrintWriter printWriter = new PrintWriter(result);
+                throwable.printStackTrace(printWriter);
+                final String stacktrace = "TheCardActivity: " + result.toString();
+                Log.d(TAG, "exception: " + stacktrace);
+                System.exit(0);
+                android.os.Process.killProcess(android.os.Process.myPid());
+            }
+        });
+        prefs = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
         setContentView(R.layout.activity_the_card);
-        setupActionBar();
-        // Set up the login form.
-        mEmailView = (AutoCompleteTextView) findViewById(R.id.email);
-        populateAutoComplete();
 
-        mPasswordView = (EditText) findViewById(R.id.password);
-        mPasswordView.setOnEditorActionListener(new TextView.OnEditorActionListener() {
-            @Override
-            public boolean onEditorAction(TextView textView, int id, KeyEvent keyEvent) {
-                if (id == R.id.login || id == EditorInfo.IME_NULL) {
-                    attemptLogin();
-                    return true;
-                }
-                return false;
-            }
-        });
+        DisplayMetrics metrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(metrics);
+        dispWidth = metrics.widthPixels;
+        dispHeight = metrics.heightPixels;
+        density = metrics.scaledDensity;
+        Log.d(TAG, "dispW=" + dispWidth + ",dispH=" + dispHeight + ", scaDens=" + density + ", dens=" + metrics.density);
 
-        Button mEmailSignInButton = (Button) findViewById(R.id.email_sign_in_button);
-        mEmailSignInButton.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                attemptLogin();
-            }
-        });
-
-        mLoginFormView = findViewById(R.id.login_form);
-        mProgressView = findViewById(R.id.login_progress);
-    }
-
-    private void populateAutoComplete() {
-        if (!mayRequestContacts()) {
-            return;
-        }
-
-        getLoaderManager().initLoader(0, null, this);
-    }
-
-    private boolean mayRequestContacts() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            return true;
-        }
-        if (checkSelfPermission(READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
-            return true;
-        }
-        if (shouldShowRequestPermissionRationale(READ_CONTACTS)) {
-            Snackbar.make(mEmailView, R.string.permission_rationale, Snackbar.LENGTH_INDEFINITE)
-                    .setAction(android.R.string.ok, new View.OnClickListener() {
-                        @Override
-                        @TargetApi(Build.VERSION_CODES.M)
-                        public void onClick(View v) {
-                            requestPermissions(new String[]{READ_CONTACTS}, REQUEST_READ_CONTACTS);
-                        }
-                    });
-        } else {
-            requestPermissions(new String[]{READ_CONTACTS}, REQUEST_READ_CONTACTS);
-        }
-        return false;
-    }
-
-    /**
-     * Callback received when a permissions request has been completed.
-     */
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        if (requestCode == REQUEST_READ_CONTACTS) {
-            if (grantResults.length == 1 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                populateAutoComplete();
-            }
-        }
-    }
-
-    /**
-     * Set up the {@link android.app.ActionBar}, if the API is available.
-     */
-    @TargetApi(Build.VERSION_CODES.HONEYCOMB)
-    private void setupActionBar() {
+        final Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-            // Show the Up button in the action bar.
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
+        collapsingToolbarLayout = (CollapsingToolbarLayout) findViewById(R.id.toolbar_layout);
+        ((AppBarLayout)findViewById(R.id.app_bar)).addOnOffsetChangedListener(this);
+
+        cardID = getIntent().getIntExtra("cardID", -1);
+        connect2db();
+
+        updateCardInfo();
+
+        fab = (FloatingActionButton) findViewById(R.id.fabEdit);
+        fab.setOnClickListener(this);
+        //((AppBarLayout)findViewById(R.id.app_bar)).setExpanded(false, true); // second one for animation
+        ((EditText)findViewById(R.id.cardTitleEditText)).setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View view, boolean b) {
+                if (!b) {
+                    fab.setImageResource(android.R.drawable.ic_menu_edit);
+                    ((InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(view.getWindowToken(), 0);
+                    String newCardTitle=((EditText) view).getText().toString();
+                    if (newCardTitle.equals("")){
+                        mytoast(false,"У вас пустое название!");
+                        return;
+                    }
+                    try {
+                        db.execSQL("update cards set title=\""+newCardTitle+"\" where id="+cardID);
+                        cardTitle = newCardTitle;
+                        collapsingToolbarLayout.setTitle(cardTitle+" ");
+                        if (findViewById(R.id.cardTitleTextInputLayout).getVisibility()!=View.GONE)
+                            findViewById(R.id.cardTitleTextInputLayout).setVisibility(View.GONE);
+                    } catch (Exception e) {
+                        mytoast(true,"Неподходящие символы в названии!");
+                    }
+
+                }
+            }
+        });
+        ((EditText)findViewById(R.id.cardTitleEditText)).setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView textView, int i, KeyEvent keyEvent) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    TransitionManager.beginDelayedTransition((ViewGroup) findViewById(android.R.id.content), new Fade());
+                }
+                findViewById(R.id.cardTitleTextInputLayout).setVisibility(View.GONE);
+                return true;
+            }
+        });
+
+        //mTitle.setError(null);
+        //showProgress(true);
+    }
+    void updateCardInfo(){
+        soundAnons=0;
+        soundQuestion=0;
+        soundRight=0;
+        soundWrong=0;
+        String SsoundAnons="";
+        String SsoundQuestion="";
+        String SsoundRight="";
+        String SsoundWrong="";
+
+        connect2db();
+        Cursor c = db.rawQuery("select * from cards where id="+cardID, null);
+        if (c.getCount() > 0){
+            c.moveToFirst();
+
+            cardTitle=c.getString(c.getColumnIndex("title"));
+            collapsingToolbarLayout.setTitle(cardTitle+" ");
+            if (c.getString(c.getColumnIndex("pic"))!=null && !c.getString(c.getColumnIndex("pic")).equals(""))
+                try {
+                    ((ImageView) findViewById(R.id.ivProductImage)).setImageURI(Uri.parse(c.getString(c.getColumnIndex("pic"))));
+                    ((ImageView) findViewById(R.id.ivProductImageFull)).setImageURI(Uri.parse(c.getString(c.getColumnIndex("pic"))));
+                } catch (Exception e) {
+                    //Log.e("djd",""+e);
+                }
+            else {
+                ((ImageView) findViewById(R.id.ivProductImage)).setImageResource(R.drawable.ico);
+                ((ImageView) findViewById(R.id.ivProductImageFull)).setImageResource(R.drawable.ico);
+            }
+
+            if (mSoundPool!=null)
+                mSoundPool.release();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                mSoundPool = new SoundPool.Builder().setMaxStreams(10).build();
+            } else {
+                mSoundPool = new SoundPool(10, AudioManager.STREAM_MUSIC, 1);
+            }
+            /*mSoundPool.setOnLoadCompleteListener(new SoundPool.OnLoadCompleteListener() {
+                public void onLoadComplete(final SoundPool soundPool,  int sampleId, int status) {
+                    Log.d(TAG,"soundPool loaded "+sampleId+", status="+status);
+                }
+            });*/
+            SsoundAnons=c.getString(c.getColumnIndex("anons"));
+            SsoundQuestion=c.getString(c.getColumnIndex("question"));
+            SsoundRight=c.getString(c.getColumnIndex("right"));
+            SsoundWrong=c.getString(c.getColumnIndex("wrong"));
+            //Log.d(TAG,"load sounds: "+SsoundAnons+","+SsoundQuestion+","+SsoundRight+","+SsoundWrong);
+            try {
+                if (SsoundAnons!=null && !SsoundAnons.equals("") && !SsoundAnons.equals("null")) {
+                    Log.d(TAG,"load anons sound "+SsoundAnons);
+                    soundAnons = mSoundPool.load(Environment.getExternalStorageDirectory()+"/"+SsoundAnons, 1);
+                }
+            } catch (Exception e) {
+                Log.e(TAG,"load sound1 "+e);
+            }
+            try {
+                if (SsoundQuestion!=null && !SsoundQuestion.equals("") && !SsoundQuestion.equals("null")) {
+                    Log.d(TAG,"load q sound "+SsoundQuestion);
+                    soundQuestion = mSoundPool.load(Environment.getExternalStorageDirectory()+"/"+SsoundQuestion, 1);
+                }
+            } catch (Exception e) {
+                Log.e(TAG,"load sound2 "+e);
+            }
+            try {
+                if (SsoundRight!=null && !SsoundRight.equals("") && !SsoundRight.equals("null")) {
+                    Log.d(TAG,"load right sound "+SsoundRight);
+                    soundRight = mSoundPool.load(Environment.getExternalStorageDirectory()+"/"+SsoundRight, 1);
+                }
+            } catch (Exception e) {
+                Log.e(TAG,"load sound3 "+e);
+            }
+            try {
+                if (SsoundWrong!=null && !SsoundWrong.equals("") && !SsoundWrong.equals("null")) {
+                    Log.d(TAG,"load wrong sound "+SsoundWrong);
+                    soundWrong = mSoundPool.load(Environment.getExternalStorageDirectory()+"/"+SsoundWrong, 1);
+                }
+            } catch (Exception e) {
+                Log.e(TAG,"load sound4 "+e);
+            }
+
+            if (!ttsInited && tts==null){
+                initTTS();
+            }
+        } else {
+            Toast toast= Toast.makeText(getApplicationContext(), "Ошибка, нет такой карточки", Toast.LENGTH_SHORT);
+            toast.show();
+            Log.d(TAG,"нет карточки "+cardID);
+            supportFinishAfterTransition();
+        }
+        c.close();
+
+
+
+        ((ImageView)findViewById(R.id.recButton1)).setImageResource(recorder==null?android.R.drawable.ic_btn_speak_now:android.R.drawable.ic_menu_save);
+        findViewById(R.id.playButton1).setEnabled(recorder==null && ((SsoundAnons!=null && !SsoundAnons.equals("") && !SsoundAnons.equals("null")) || (ttsInited && utteranceDone)));
+        findViewById(R.id.delButton1).setEnabled(recorder==null && SsoundAnons!=null && !SsoundAnons.equals("") && !SsoundAnons.equals("null"));
+
+        ((ImageView)findViewById(R.id.recButton2)).setImageResource(recorder==null?android.R.drawable.ic_btn_speak_now:android.R.drawable.ic_menu_save);
+        findViewById(R.id.playButton2).setEnabled(recorder==null && ((SsoundQuestion!=null && !SsoundQuestion.equals("") && !SsoundQuestion.equals("null")) || (ttsInited && utteranceDone)));
+        findViewById(R.id.delButton2).setEnabled(recorder==null && SsoundQuestion!=null && !SsoundQuestion.equals("") && !SsoundQuestion.equals("null"));
+
+
+        ((ImageView)findViewById(R.id.recButton3)).setImageResource(recorder==null?android.R.drawable.ic_btn_speak_now:android.R.drawable.ic_menu_save);
+        findViewById(R.id.playButton3).setEnabled(recorder==null && ((SsoundWrong!=null && !SsoundWrong.equals("") && !SsoundWrong.equals("null")) || (ttsInited && utteranceDone)));
+        findViewById(R.id.delButton3).setEnabled(recorder==null && SsoundWrong!=null && !SsoundWrong.equals("") && !SsoundWrong.equals("null"));
+
+        ((ImageView)findViewById(R.id.recButton4)).setImageResource(recorder==null?android.R.drawable.ic_btn_speak_now:android.R.drawable.ic_menu_save);
+        findViewById(R.id.playButton4).setEnabled(recorder==null && ((SsoundRight!=null && !SsoundRight.equals("") && !SsoundRight.equals("null")) || (ttsInited && utteranceDone)));
+        findViewById(R.id.delButton4).setEnabled(recorder==null && SsoundRight!=null && !SsoundRight.equals("") && !SsoundRight.equals("null"));
+
+        collapsingToolbarLayout.requestFocus();
+    }
+
+
+    @Override
+    public void onOffsetChanged(AppBarLayout appBarLayout, int verticalOffset) {
+        //Log.d(TAG,"onOffsetChanged: verticalOffset="+verticalOffset+", range="+appBarLayout.getTotalScrollRange());
+        if (Math.abs(verticalOffset)>appBarLayout.getTotalScrollRange()*0.3) {
+            //  Collapsing
+        } else {
+        }
+    }
+    @Override
+    protected void onDestroy(){
+        //Log.d(TAG,"onDestroy");
+        if (ttsInited) {
+            tts.stop();
+            tts.shutdown();
+            if (brTTS!= null) {
+                unregisterReceiver(brTTS);
+                brTTS=null;
+            }
+            ttsInited = false;
+        }
+        if (db!=null && db.isOpen()){
+            //Log.d(TAG, "main closes db");
+            //postlog.post("main closes db...");
+            db.close();
+        }
+        super.onDestroy();
+    }
+    @Override
+    public void onBackPressed() {
+        supportFinishAfterTransition();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.cards, menu);
+        return true;
     }
 
     @Override
@@ -157,94 +336,45 @@ public class TheCardActivity extends AppCompatActivity implements LoaderCallback
             case android.R.id.home:
                 supportFinishAfterTransition();
                 return true;
+            case R.id.action_delete:
+                new AlertDialog.Builder(TheCardActivity.this)
+                        .setTitle("Удалить карточку?")
+                        .setMessage("Файл с картинкой и статистика сохранятся. Звук придётся перезаписывать")
+                        .setPositiveButton("Да", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialogInterface, int i) {
+                                db.execSQL("delete from cards where id="+cardID);
+                                Toast toast= Toast.makeText(getApplicationContext(), "Удалено", Toast.LENGTH_SHORT);
+                                toast.show();
+                                supportFinishAfterTransition();
+                            }
+                        })
+                        .setNegativeButton("Нет", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialogInterface, int i) {
+                            }
+                        })
+                        .setCancelable(true)
+                        .show();
+                break;
+            case R.id.action_edit_title:
+                updateFAB(false);
+                break;
+            case R.id.action_change_picture:
+                changePic();
+                break;
         }
         return super.onOptionsItemSelected(item);
     }
 
-    /**
-     * Attempts to sign in or register the account specified by the login form.
-     * If there are form errors (invalid email, missing fields, etc.), the
-     * errors are presented and no actual login attempt is made.
-     */
-    private void attemptLogin() {
-        if (mAuthTask != null) {
-            return;
-        }
-
-        // Reset errors.
-        mEmailView.setError(null);
-        mPasswordView.setError(null);
-
-        // Store values at the time of the login attempt.
-        String email = mEmailView.getText().toString();
-        String password = mPasswordView.getText().toString();
-
-        boolean cancel = false;
-        View focusView = null;
-
-        // Check for a valid password, if the user entered one.
-        if (!TextUtils.isEmpty(password) && !isPasswordValid(password)) {
-            mPasswordView.setError(getString(R.string.error_invalid_password));
-            focusView = mPasswordView;
-            cancel = true;
-        }
-
-        // Check for a valid email address.
-        if (TextUtils.isEmpty(email)) {
-            mEmailView.setError(getString(R.string.error_field_required));
-            focusView = mEmailView;
-            cancel = true;
-        } else if (!isEmailValid(email)) {
-            mEmailView.setError(getString(R.string.error_invalid_email));
-            focusView = mEmailView;
-            cancel = true;
-        }
-
-        if (cancel) {
-            // There was an error; don't attempt login and focus the first
-            // form field with an error.
-            focusView.requestFocus();
-        } else {
-            // Show a progress spinner, and kick off a background task to
-            // perform the user login attempt.
-            showProgress(true);
-            mAuthTask = new UserLoginTask(email, password);
-            mAuthTask.execute((Void) null);
-        }
-    }
-
-    private boolean isEmailValid(String email) {
-        //TODO: Replace this with your own logic
-        return email.contains("@");
-    }
-
-    private boolean isPasswordValid(String password) {
-        //TODO: Replace this with your own logic
-        return password.length() > 4;
-    }
-
-    /**
-     * Shows the progress UI and hides the login form.
-     */
     @TargetApi(Build.VERSION_CODES.HONEYCOMB_MR2)
     private void showProgress(final boolean show) {
         // On Honeycomb MR2 we have the ViewPropertyAnimator APIs, which allow
         // for very easy animations. If available, use these APIs to fade-in
         // the progress spinner.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR2) {
-            int shortAnimTime = getResources().getInteger(android.R.integer.config_shortAnimTime);
-
-            mLoginFormView.setVisibility(show ? View.GONE : View.VISIBLE);
-            mLoginFormView.animate().setDuration(shortAnimTime).alpha(
-                    show ? 0 : 1).setListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    mLoginFormView.setVisibility(show ? View.GONE : View.VISIBLE);
-                }
-            });
-
             mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
-            mProgressView.animate().setDuration(shortAnimTime).alpha(
+            mProgressView.animate().setDuration(500).alpha(
                     show ? 1 : 0).setListener(new AnimatorListenerAdapter() {
                 @Override
                 public void onAnimationEnd(Animator animation) {
@@ -255,119 +385,347 @@ public class TheCardActivity extends AppCompatActivity implements LoaderCallback
             // The ViewPropertyAnimator APIs are not available, so simply show
             // and hide the relevant UI components.
             mProgressView.setVisibility(show ? View.VISIBLE : View.GONE);
-            mLoginFormView.setVisibility(show ? View.GONE : View.VISIBLE);
+        }
+    }
+    void connect2db() {
+        if (db!=null && db.isOpen())
+            return;
+        String ppp1 = getDatabasePath("picky.db").getAbsolutePath();//getFilesDir().getAbsolutePath()+"/doors.db";//getDatabasePath("doors.db").getAbsolutePath();//getPath();
+        //Log.d(TAG,"getDatabasePath="+ppp1);
+        db = SQLiteDatabase.openDatabase(ppp1, null, SQLiteDatabase.OPEN_READWRITE);
+        if (!db.isOpen()) {
+            mytoast(true,"Файл с данными не открывается");
+            supportFinishAfterTransition();
+        } else {
+            //mytoast(true,"Загрузите картинку и запишите звук");
+        }
+    }
+    void mytoast(final boolean length_long,final String s){
+        Snackbar snackbar = Snackbar
+                .make(findViewById(R.id.placeSnackBarС)/**/, s, length_long?Snackbar.LENGTH_LONG:Snackbar.LENGTH_SHORT)
+                .setAction("Action", null);
+        View snackbarView = snackbar.getView();
+        snackbarView.setBackgroundColor(Color.parseColor("#FF4081"));
+        snackbar.show(); // Don’t forget to show! // */
+    }
+    @Override
+    public void onRequestPermissionsResult(final int requestCode, String permissions[], int[] grantResults) {
+        switch (requestCode) {
+            case 50:
+            case 51:
+                if (lastViewClicked !=null){
+                    onClick(lastViewClicked);
+                }
+                break;
         }
     }
 
     @Override
-    public Loader<Cursor> onCreateLoader(int i, Bundle bundle) {
-        return new CursorLoader(this,
-                // Retrieve data rows for the device user's 'profile' contact.
-                Uri.withAppendedPath(ContactsContract.Profile.CONTENT_URI,
-                        ContactsContract.Contacts.Data.CONTENT_DIRECTORY), ProfileQuery.PROJECTION,
+    public void onClick(View view) {
+        lastViewClicked =view;
+        if (view==fab) {
+            updateFAB(true);
+        } else if (view.getId()==R.id.ivProductImage || view.getId()==R.id.ivProductImageFull) {
+            changePic();
+        } else if (view.getId()==R.id.recButton1 || view.getId()==R.id.recButton2 || view.getId()==R.id.recButton3 || view.getId()==R.id.recButton4) {
+            if (recorder==null) {
+                PackageManager pmanager = this.getPackageManager();
+                if (!pmanager.hasSystemFeature(PackageManager.FEATURE_MICROPHONE)){
+                    mytoast(true,"У вас не обнаружено микрофона");
+                    return;
+                }
+                if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED){
+                    if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.RECORD_AUDIO)) {
+                        Snackbar.make(view, "Без записи приложение будeт озвучивать картинки голосом робота. Разрешить запись вашего голоса?",
+                                Snackbar.LENGTH_INDEFINITE)
+                                .setAction(R.string.ok, new View.OnClickListener() {
+                                    @Override
+                                    public void onClick(View view) {
+                                        ActivityCompat.requestPermissions(TheCardActivity.this, new String[]{Manifest.permission.RECORD_AUDIO}, 50);
+                                    }
+                                })
+                                .show();
+                    } else {
+                        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO},50);
+                    }
+                    return;
+                }
+                if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED){
+                    if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                        Snackbar.make(view, "Без доступа к памяти не получится сохранить ваш голос. Разрешить запись на карту памяти?",
+                                Snackbar.LENGTH_INDEFINITE)
+                                .setAction(R.string.ok, new View.OnClickListener() {
+                                    @Override
+                                    public void onClick(View view) {
+                                        ActivityCompat.requestPermissions(TheCardActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 51);
+                                    }
+                                })
+                                .show();
+                    } else {
+                        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},51);
+                    }
+                    return;
+                }
 
-                // Select only email addresses.
-                ContactsContract.Contacts.Data.MIMETYPE +
-                        " = ?", new String[]{ContactsContract.CommonDataKinds.Email
-                .CONTENT_ITEM_TYPE},
+                File folder = new File(Environment.getExternalStorageDirectory() + "/pickyvoice");
+                boolean success = true;
+                if (!folder.exists()) {
+                    success = folder.mkdir();
+                }
+                if (success) {
+                    String addon="";
+                    if (view.getId()==R.id.recButton1)
+                        addon="anons";
+                    else if (view.getId()==R.id.recButton2)
+                        addon="question";
+                    else if (view.getId()==R.id.recButton3)
+                        addon="wrong";
+                    else if (view.getId()==R.id.recButton4)
+                        addon="right";
+                    String s="/pickyvoice/"
+                            +cardID
+                            +"_"+addon+"_"
+                            +(new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss_SSS", Locale.getDefault())).format(new Date(System.currentTimeMillis()))
+                            +".wav";
+                    //Log.d(TAG,"rec: s="+s);
+                    File file = new File(Environment.getExternalStorageDirectory(),s);
+                    recorder = OmRecorder.wav(
+                            new PullTransport.Noise(mic(), new PullTransport.OnAudioChunkPulledListener() {
+                                @Override
+                                public void onAudioChunkPulled(AudioChunk audioChunk) {
+                                    animateVoice(lastViewClicked, (float) (audioChunk.maxAmplitude() / 200.0));
+                                }
+                            }, new WriteAction.Default(), new Recorder.OnSilenceListener() {
+                                @Override
+                                public void onSilence(long silenceTime) {
+                                    Log.e(TAG, String.valueOf(silenceTime));
+                                    mytoast(false, "Обрезана тишина " + silenceTime + " ");
+                                }
+                            }, 1000), file);
+                    try {
+                        recorder.startRecording();
+                    } catch (Exception e) {
+                        mytoast(true,"Ошибка записи на карту памяти E1");
+                        Log.e(TAG,"rec: "+e);
+                        recorder=null;
+                        updateCardInfo();
+                        return;
+                    }
+                    db.execSQL("update cards set "+addon+"=\""+s+"\" where id="+cardID);
+                    Log.d(TAG,"record: "+"update cards set "+addon+"=\""+s+"\" where id="+cardID);
+                } else {
+                    mytoast(true,"Ошибка записи на карту памяти E2");
+                    recorder=null;
+                }
+                updateCardInfo();
+            } else {
+                try {
+                    recorder.stopRecording();
+                    recorder=null;
+                } catch (Exception e) {
+                    Log.e(TAG,"rec "+e);
+                }
+                view.postDelayed(new Runnable() {
+                    @Override public void run() {
+                        animateVoice(lastViewClicked,0);
+                        updateCardInfo();
+                    }
+                },100);
 
-                // Show primary email addresses first. Note that there won't be
-                // a primary email address if the user hasn't specified one.
-                ContactsContract.Contacts.Data.IS_PRIMARY + " DESC");
-    }
-
-    @Override
-    public void onLoadFinished(Loader<Cursor> cursorLoader, Cursor cursor) {
-        List<String> emails = new ArrayList<>();
-        cursor.moveToFirst();
-        while (!cursor.isAfterLast()) {
-            emails.add(cursor.getString(ProfileQuery.ADDRESS));
-            cursor.moveToNext();
-        }
-
-        addEmailsToAutoComplete(emails);
-    }
-
-    @Override
-    public void onLoaderReset(Loader<Cursor> cursorLoader) {
-
-    }
-
-    private void addEmailsToAutoComplete(List<String> emailAddressCollection) {
-        //Create adapter to tell the AutoCompleteTextView what to show in its dropdown list.
-        ArrayAdapter<String> adapter =
-                new ArrayAdapter<>(TheCardActivity.this,
-                        android.R.layout.simple_dropdown_item_1line, emailAddressCollection);
-
-        mEmailView.setAdapter(adapter);
-    }
-
-
-    private interface ProfileQuery {
-        String[] PROJECTION = {
-                ContactsContract.CommonDataKinds.Email.ADDRESS,
-                ContactsContract.CommonDataKinds.Email.IS_PRIMARY,
-        };
-
-        int ADDRESS = 0;
-        int IS_PRIMARY = 1;
-    }
-
-    /**
-     * Represents an asynchronous login/registration task used to authenticate
-     * the user.
-     */
-    public class UserLoginTask extends AsyncTask<Void, Void, Boolean> {
-
-        private final String mEmail;
-        private final String mPassword;
-
-        UserLoginTask(String email, String password) {
-            mEmail = email;
-            mPassword = password;
-        }
-
-        @Override
-        protected Boolean doInBackground(Void... params) {
-            // TODO: attempt authentication against a network service.
-
-            try {
-                // Simulate network access.
-                Thread.sleep(2000);
-            } catch (InterruptedException e) {
-                return false;
             }
+        } else if (view.getId()==R.id.playButton1 || view.getId()==R.id.playButton2 || view.getId()==R.id.playButton3 || view.getId()==R.id.playButton4 ) {
+            //Log.d(TAG,"playbutton: soundAnons="+soundAnons);
+            if ((view.getId()==R.id.playButton1 && soundAnons==0)
+                    || (view.getId()==R.id.playButton2 && soundQuestion==0)
+                    || (view.getId()==R.id.playButton3 && soundWrong==0)
+                    || (view.getId()==R.id.playButton4 && soundRight==0)
+                    ){
+                if (tts.isLanguageAvailable(Locale.getDefault()) < 0) {
+                    mytoast(false, "Нет синтезатора русской речи!");
+                    return;
+                }
+                utteranceDone = false;
+                updateCardInfo();
+                new Thread(new Runnable() {
+                    public void run() {
+                        String s=cardTitle;
+                        if (lastViewClicked.getId()==R.id.playButton1)
+                            s="Посмотри, это - "+s+"!";
+                        else if (lastViewClicked.getId()==R.id.playButton2)
+                            s="Покажи, где "+s+"?";
+                        else if (lastViewClicked.getId()==R.id.playButton3)
+                            s="Нет, это не "+s+"...";
+                        else if (lastViewClicked.getId()==R.id.playButton4)
+                            s="Правильно, это "+s+"!!!";
+                        if (tts.isLanguageAvailable(Locale.getDefault()) < 0) {
+                            Log.d(TAG,"tts translit: "+(new Converter()).convert(s));
+                            tts.speak((new Converter()).convert(s), TextToSpeech.QUEUE_FLUSH, null);
+                        }else
+                            tts.speak(s, TextToSpeech.QUEUE_FLUSH, null);
 
-            for (String credential : DUMMY_CREDENTIALS) {
-                String[] pieces = credential.split(":");
-                if (pieces[0].equals(mEmail)) {
-                    // Account exists, return true if the password matches.
-                    return pieces[1].equals(mPassword);
+                    }
+                }).start();
+            }else {
+                if (view.getId()==R.id.playButton1)
+                    mSoundPool.play(soundAnons, 1, 1, 1, 0, 1f);
+                else if (view.getId()==R.id.playButton2)
+                    mSoundPool.play(soundQuestion, 1, 1, 1, 0, 1f);
+                else if (view.getId()==R.id.playButton3)
+                    mSoundPool.play(soundWrong, 1, 1, 1, 0, 1f);
+                else if (view.getId()==R.id.playButton4)
+                    mSoundPool.play(soundRight, 1, 1, 1, 0, 1f);
+            }
+        } else if (view.getId()==R.id.delButton1 || view.getId()==R.id.delButton2 || view.getId()==R.id.delButton3 || view.getId()==R.id.delButton4) {
+            new AlertDialog.Builder(TheCardActivity.this)
+                    .setTitle("Удалить голос?")
+                    .setMessage("Будет использоваться голос робота")
+                    .setPositiveButton("Да", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialogInterface, int i) {
+                            if (lastViewClicked.getId()==R.id.delButton1)
+                                db.execSQL("update cards set anons=\"\" where id="+cardID);
+                            else if (lastViewClicked.getId()==R.id.delButton2)
+                                db.execSQL("update cards set question=\"\" where id="+cardID);
+                            else if (lastViewClicked.getId()==R.id.delButton3)
+                                db.execSQL("update cards set wrong=\"\" where id="+cardID);
+                            else if (lastViewClicked.getId()==R.id.delButton4)
+                                db.execSQL("update cards set right=\"\" where id="+cardID);
+                            mytoast(false,"Запись голоса удалена");
+                            updateCardInfo();
+                        }
+                    })
+                    .setNegativeButton("Нет", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialogInterface, int i) {
+                        }
+                    })
+                    .setCancelable(true)
+                    .show();
+        } else if (view.getId()==R.id.saveButton){
+            finish();//supportFinishAfterTransition();
+        }
+    }
+    private void animateVoice(final View view, final float maxPeak) {
+        view.animate().scaleX(1 + maxPeak).scaleY(1 + maxPeak).setDuration(10).start();
+    }
+    private AudioSource mic() {
+        return new AudioSource.Smart(MediaRecorder.AudioSource.MIC, AudioFormat.ENCODING_PCM_16BIT, AudioFormat.CHANNEL_IN_MONO, 44100);
+    }
+    void changePic(){
+        //https://github.com/nguyenhoanglam/ImagePicker
+        ImagePicker.create(TheCardActivity.this)
+                .folderMode(true) // folder mode (false by default)
+                .folderTitle("Замена картинки: выберите папку") // folder selection title
+                .imageTitle("Замена картинки: выберите файл") // image selection title
+                .single() // single mode
+                //.multi() // multi mode (default mode)
+                //.limit(10) // max images can be selected (999 by default)
+                .showCamera(true) // show camera or not (true by default)
+                .imageDirectory("Camera") // directory name for captured image  ("Camera" folder by default)
+                //.origin(images) // original selected images, used in multi mode
+                .start(123); // start image picker activity with request code
+    }
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == 123 && resultCode == RESULT_OK && data != null) {
+            ArrayList<Image> images = data.getParcelableArrayListExtra(ImagePickerActivity.INTENT_EXTRA_SELECTED_IMAGES);
+            if (images.size()>0){
+                String pic=images.get(0).getPath();
+                Log.d(TAG,"pic path original="+pic);
+                BitmapResizer br=new BitmapResizer();
+                pic=br.getResizedPath(pic);
+                db.execSQL("update cards set pic=\""+pic+"\" where id="+cardID);
+                updateCardInfo();
+            }
+        }
+    }
+    void updateFAB(boolean animate){
+        if (animate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            Animation rotation = new RotateAnimation(0, 360, Animation.RELATIVE_TO_SELF, 0.5f, Animation.RELATIVE_TO_SELF, 0.5f);
+            rotation.setRepeatCount(0);
+            rotation.setDuration(200);
+            rotation.setAnimationListener(new Animation.AnimationListener() {
+                @Override
+                public void onAnimationStart(Animation animation) {
+                }
+
+                @Override
+                public void onAnimationEnd(Animation animation) {
+                    updateFAB(false);
+                }
+
+                @Override
+                public void onAnimationRepeat(Animation animation) {
+
+                }
+            });
+            fab.startAnimation(rotation);
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            TransitionManager.beginDelayedTransition((ViewGroup) findViewById(android.R.id.content), new Slide());
+        }
+        if (findViewById(R.id.cardTitleTextInputLayout).getVisibility()==View.VISIBLE){
+            findViewById(R.id.cardTitleTextInputLayout).setVisibility(View.GONE);
+        } else {
+            fab.setImageResource(R.drawable.ic_done_white);
+            findViewById(R.id.cardTitleTextInputLayout).setVisibility(View.VISIBLE);
+            ((EditText) findViewById(R.id.cardTitleEditText)).setText(cardTitle);
+            findViewById(R.id.cardTitleEditText).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    findViewById(R.id.cardTitleEditText).requestFocus();
+                    findViewById(R.id.cardTitleEditText).dispatchTouchEvent(MotionEvent.obtain(SystemClock.uptimeMillis(), SystemClock.uptimeMillis(), MotionEvent.ACTION_DOWN, 0, 0, 0));
+                    findViewById(R.id.cardTitleEditText).dispatchTouchEvent(MotionEvent.obtain(SystemClock.uptimeMillis(), SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, 0, 0, 0));
+                    ((EditText) findViewById(R.id.cardTitleEditText)).setSelection(((EditText) findViewById(R.id.cardTitleEditText)).getText().length());
+                }
+            }, 250);
+        }
+    }
+
+
+    void initTTS() {
+        tts = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                if (status == TextToSpeech.SUCCESS) {
+                    //if (tts.isLanguageAvailable(Locale.getDefault()) < 0) {
+                    //    mytoast(false,"Нет синтезатора русской речи!");
+                    //} //else {
+                        new Thread(new Runnable() {
+                            public void run() {
+                                if (tts.isLanguageAvailable(Locale.getDefault()) < 0) {
+                                    //mytoast(true,"Нет синтезатора русской речи!");
+                                    //ttsInited = true;
+                                } else {
+                                    tts.setLanguage(Locale.getDefault());
+                                    ttsInited = true;
+                                }
+                                runOnUiThread(new Runnable() {
+                                    public void run() {
+                                        updateCardInfo();
+                                    }
+                                });
+                                brTTS = new BroadcastReceiver() {
+                                    public void onReceive(Context p1, Intent p2) {
+                                        //Log.d(TAG,"utterance! TTS ACTION_TTS_QUEUE_PROCESSING_COMPLETED, p2.getAction()="+p2.getAction()+", ? "+TextToSpeech.ACTION_TTS_QUEUE_PROCESSING_COMPLETED);
+                                        if (p2.getAction().equals(TextToSpeech.ACTION_TTS_QUEUE_PROCESSING_COMPLETED) && tts != null) {
+                                            utteranceDone = true;
+                                            updateCardInfo();
+                                        }
+                                    }
+                                };
+                                registerReceiver(brTTS, new IntentFilter(TextToSpeech.ACTION_TTS_QUEUE_PROCESSING_COMPLETED));
+                            }
+                        }).start();// * /
+
+                    //}
+                } else {
+                    mytoast(false,"Нет синтезатора речи");
                 }
             }
-
-            // TODO: register the new account here.
-            return true;
-        }
-
-        @Override
-        protected void onPostExecute(final Boolean success) {
-            mAuthTask = null;
-            showProgress(false);
-
-            if (success) {
-                finish();
-            } else {
-                mPasswordView.setError(getString(R.string.error_incorrect_password));
-                mPasswordView.requestFocus();
-            }
-        }
-
-        @Override
-        protected void onCancelled() {
-            mAuthTask = null;
-            showProgress(false);
-        }
+        });
     }
+
 }
 

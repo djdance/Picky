@@ -17,9 +17,10 @@ public class CardsListItem {
         this.right=right;
     }
 
-    public CardsListItem(int id, int theme, String title){
+    public CardsListItem(int id, int theme, String pic, String title){
         this.id=id;
         this.theme=theme;
+        this.pic=pic;
         this.title=title;
     }
 }

@@ -2,10 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="ru.orgcom.picky">
 
-    <!-- To auto-complete the email text field in the login form with the user's emails -->
-    <uses-permission android:name="android.permission.GET_ACCOUNTS" />
-    <uses-permission android:name="android.permission.READ_PROFILE" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
     <application
         android:allowBackup="true"
@@ -25,17 +23,21 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".CardActivity"
-            android:label="@string/title_activity_card"
-            android:parentActivityName=".Main">
+            android:name=".TheCardActivity"
+            android:label="@string/title_activity_the_card"
+            android:parentActivityName=".Main"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:windowSoftInputMode="stateAlwaysHidden|adjustPan">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value="ru.orgcom.picky.Main" />
         </activity>
         <activity
-            android:name=".TheCardActivity"
-            android:label="@string/title_activity_the_card"
-            android:parentActivityName=".Main">
+            android:name=".ShowMeActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:label="@string/title_activity_show_me"
+            android:parentActivityName=".Main"
+            android:theme="@style/FullscreenTheme">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value="ru.orgcom.picky.Main" />
