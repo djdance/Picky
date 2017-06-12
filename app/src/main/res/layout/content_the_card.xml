@@ -70,7 +70,7 @@
                 android:layout_centerVertical="true"
                 android:layout_marginBottom="10dp"
                 android:layout_marginLeft="15dp"
-                android:text="Анонс картинки (Посмотри, это - ...)"
+                android:text="Анонс картинки\n(Посмотри, это - ...)"
                 android:textColor="#ffffff"
                 android:textSize="25dp" />
 
@@ -132,7 +132,7 @@
                 android:layout_centerVertical="true"
                 android:layout_marginBottom="10dp"
                 android:layout_marginLeft="15dp"
-                android:text="Вопрос о картинке (Покажи, где ...)"
+                android:text="Вопрос о картинке\n(Покажи, где ...)"
                 android:textColor="#ffffff"
                 android:textSize="25dp" />
 
@@ -194,7 +194,7 @@
                 android:layout_centerVertical="true"
                 android:layout_marginBottom="10dp"
                 android:layout_marginLeft="15dp"
-                android:text="Неправильный выбор (Нет, это не ...). Не повторяйте тут вопрос!"
+                android:text="Неправильный выбор\n(Неверно, это - ...).\nТолько утверждение! Не повторяйте вопрос!"
                 android:textColor="#ffffff"
                 android:textSize="25dp" />
 
@@ -256,7 +256,7 @@
                 android:layout_centerVertical="true"
                 android:layout_marginBottom="10dp"
                 android:layout_marginLeft="15dp"
-                android:text="Верный ответ (Правильно, это ...)"
+                android:text="Верный ответ\n(Правильно, это - ...)"
                 android:textColor="#ffffff"
                 android:textSize="25dp" />
 

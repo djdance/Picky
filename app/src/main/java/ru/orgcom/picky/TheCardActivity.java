@@ -15,6 +15,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Color;
 import android.media.AudioFormat;
 import android.media.AudioManager;
+import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.media.SoundPool;
 import android.os.Environment;
@@ -52,6 +53,7 @@ import android.view.animation.Animation;
 import android.view.animation.RotateAnimation;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -69,6 +71,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 import omrecorder.AudioChunk;
 import omrecorder.AudioSource;
@@ -84,6 +87,7 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
     int dispWidth, dispHeight;
     float density;
 
+    Toolbar toolbar;
     View lastViewClicked =null;
     ProgressBar mProgressView;
     String cardTitle="";
@@ -93,9 +97,15 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
     Recorder recorder=null;
     SoundPool mSoundPool=null;
     int soundAnons,soundQuestion,soundWrong,soundRight;
+    String SsoundAnons="";
+    String SsoundQuestion="";
+    String SsoundRight="";
+    String SsoundWrong="";
+    long soundLen;
     TextToSpeech tts=null;
-    boolean ttsInited=false,utteranceDone=true;
+    boolean ttsInited=false,utteranceDone=true,soundsChanged=true;
     BroadcastReceiver brTTS=null;
+    SoundDuration soundDuration;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -123,7 +133,7 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
         density = metrics.scaledDensity;
         Log.d(TAG, "dispW=" + dispWidth + ",dispH=" + dispHeight + ", scaDens=" + density + ", dens=" + metrics.density);
 
-        final Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
@@ -132,6 +142,7 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
         ((AppBarLayout)findViewById(R.id.app_bar)).addOnOffsetChangedListener(this);
 
         cardID = getIntent().getIntExtra("cardID", -1);
+        soundDuration=new SoundDuration(getApplicationContext());
         connect2db();
 
         updateCardInfo();
@@ -143,7 +154,7 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
             @Override
             public void onFocusChange(View view, boolean b) {
                 if (!b) {
-                    fab.setImageResource(android.R.drawable.ic_menu_edit);
+                    fab.setImageResource(R.drawable.ic_mode_edit);
                     ((InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(view.getWindowToken(), 0);
                     String newCardTitle=((EditText) view).getText().toString();
                     if (newCardTitle.equals("")){
@@ -156,6 +167,8 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
                         collapsingToolbarLayout.setTitle(cardTitle+" ");
                         if (findViewById(R.id.cardTitleTextInputLayout).getVisibility()!=View.GONE)
                             findViewById(R.id.cardTitleTextInputLayout).setVisibility(View.GONE);
+                        soundsChanged=true;
+                        updateCardInfo();
                     } catch (Exception e) {
                         mytoast(true,"Неподходящие символы в названии!");
                     }
@@ -178,14 +191,16 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
         //showProgress(true);
     }
     void updateCardInfo(){
-        soundAnons=0;
-        soundQuestion=0;
-        soundRight=0;
-        soundWrong=0;
-        String SsoundAnons="";
-        String SsoundQuestion="";
-        String SsoundRight="";
-        String SsoundWrong="";
+        if (soundsChanged) {
+            soundAnons = 0;
+            soundQuestion = 0;
+            soundRight = 0;
+            soundWrong = 0;
+            SsoundAnons = "";
+            SsoundQuestion = "";
+            SsoundRight = "";
+            SsoundWrong = "";
+        }
 
         connect2db();
         Cursor c = db.rawQuery("select * from cards where id="+cardID, null);
@@ -206,56 +221,58 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
                 ((ImageView) findViewById(R.id.ivProductImageFull)).setImageResource(R.drawable.ico);
             }
 
-            if (mSoundPool!=null)
-                mSoundPool.release();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                mSoundPool = new SoundPool.Builder().setMaxStreams(10).build();
-            } else {
-                mSoundPool = new SoundPool(10, AudioManager.STREAM_MUSIC, 1);
-            }
+            if (soundsChanged) {
+                soundsChanged=false;
+                if (mSoundPool != null)
+                    mSoundPool.release();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    mSoundPool = new SoundPool.Builder().setMaxStreams(10).build();
+                } else {
+                    mSoundPool = new SoundPool(10, AudioManager.STREAM_MUSIC, 1);
+                }
             /*mSoundPool.setOnLoadCompleteListener(new SoundPool.OnLoadCompleteListener() {
                 public void onLoadComplete(final SoundPool soundPool,  int sampleId, int status) {
                     Log.d(TAG,"soundPool loaded "+sampleId+", status="+status);
                 }
             });*/
-            SsoundAnons=c.getString(c.getColumnIndex("anons"));
-            SsoundQuestion=c.getString(c.getColumnIndex("question"));
-            SsoundRight=c.getString(c.getColumnIndex("right"));
-            SsoundWrong=c.getString(c.getColumnIndex("wrong"));
-            //Log.d(TAG,"load sounds: "+SsoundAnons+","+SsoundQuestion+","+SsoundRight+","+SsoundWrong);
-            try {
-                if (SsoundAnons!=null && !SsoundAnons.equals("") && !SsoundAnons.equals("null")) {
-                    Log.d(TAG,"load anons sound "+SsoundAnons);
-                    soundAnons = mSoundPool.load(Environment.getExternalStorageDirectory()+"/"+SsoundAnons, 1);
+                SsoundAnons = c.getString(c.getColumnIndex("anons"));
+                SsoundQuestion = c.getString(c.getColumnIndex("question"));
+                SsoundRight = c.getString(c.getColumnIndex("right"));
+                SsoundWrong = c.getString(c.getColumnIndex("wrong"));
+                //Log.d(TAG,"load sounds: "+SsoundAnons+","+SsoundQuestion+","+SsoundRight+","+SsoundWrong);
+                try {
+                    if (SsoundAnons != null && !SsoundAnons.equals("") && !SsoundAnons.equals("null")) {
+                        //Log.d(TAG,"load anons sound "+SsoundAnons);
+                        soundAnons = mSoundPool.load(Environment.getExternalStorageDirectory() + "/" + SsoundAnons, 1);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "load sound1 " + e);
                 }
-            } catch (Exception e) {
-                Log.e(TAG,"load sound1 "+e);
-            }
-            try {
-                if (SsoundQuestion!=null && !SsoundQuestion.equals("") && !SsoundQuestion.equals("null")) {
-                    Log.d(TAG,"load q sound "+SsoundQuestion);
-                    soundQuestion = mSoundPool.load(Environment.getExternalStorageDirectory()+"/"+SsoundQuestion, 1);
+                try {
+                    if (SsoundQuestion != null && !SsoundQuestion.equals("") && !SsoundQuestion.equals("null")) {
+                        //Log.d(TAG,"load q sound "+SsoundQuestion);
+                        soundQuestion = mSoundPool.load(Environment.getExternalStorageDirectory() + "/" + SsoundQuestion, 1);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "load sound2 " + e);
                 }
-            } catch (Exception e) {
-                Log.e(TAG,"load sound2 "+e);
-            }
-            try {
-                if (SsoundRight!=null && !SsoundRight.equals("") && !SsoundRight.equals("null")) {
-                    Log.d(TAG,"load right sound "+SsoundRight);
-                    soundRight = mSoundPool.load(Environment.getExternalStorageDirectory()+"/"+SsoundRight, 1);
+                try {
+                    if (SsoundRight != null && !SsoundRight.equals("") && !SsoundRight.equals("null")) {
+                        //Log.d(TAG,"load right sound "+SsoundRight);
+                        soundRight = mSoundPool.load(Environment.getExternalStorageDirectory() + "/" + SsoundRight, 1);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "load sound3 " + e);
                 }
-            } catch (Exception e) {
-                Log.e(TAG,"load sound3 "+e);
-            }
-            try {
-                if (SsoundWrong!=null && !SsoundWrong.equals("") && !SsoundWrong.equals("null")) {
-                    Log.d(TAG,"load wrong sound "+SsoundWrong);
-                    soundWrong = mSoundPool.load(Environment.getExternalStorageDirectory()+"/"+SsoundWrong, 1);
+                try {
+                    if (SsoundWrong != null && !SsoundWrong.equals("") && !SsoundWrong.equals("null")) {
+                        //Log.d(TAG,"load wrong sound "+SsoundWrong);
+                        soundWrong = mSoundPool.load(Environment.getExternalStorageDirectory() + "/" + SsoundWrong, 1);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "load sound4 " + e);
                 }
-            } catch (Exception e) {
-                Log.e(TAG,"load sound4 "+e);
             }
-
             if (!ttsInited && tts==null){
                 initTTS();
             }
@@ -267,24 +284,72 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
         }
         c.close();
 
-
-
-        ((ImageView)findViewById(R.id.recButton1)).setImageResource(recorder==null?android.R.drawable.ic_btn_speak_now:android.R.drawable.ic_menu_save);
-        findViewById(R.id.playButton1).setEnabled(recorder==null && ((SsoundAnons!=null && !SsoundAnons.equals("") && !SsoundAnons.equals("null")) || (ttsInited && utteranceDone)));
-        findViewById(R.id.delButton1).setEnabled(recorder==null && SsoundAnons!=null && !SsoundAnons.equals("") && !SsoundAnons.equals("null"));
-
-        ((ImageView)findViewById(R.id.recButton2)).setImageResource(recorder==null?android.R.drawable.ic_btn_speak_now:android.R.drawable.ic_menu_save);
-        findViewById(R.id.playButton2).setEnabled(recorder==null && ((SsoundQuestion!=null && !SsoundQuestion.equals("") && !SsoundQuestion.equals("null")) || (ttsInited && utteranceDone)));
-        findViewById(R.id.delButton2).setEnabled(recorder==null && SsoundQuestion!=null && !SsoundQuestion.equals("") && !SsoundQuestion.equals("null"));
-
-
-        ((ImageView)findViewById(R.id.recButton3)).setImageResource(recorder==null?android.R.drawable.ic_btn_speak_now:android.R.drawable.ic_menu_save);
-        findViewById(R.id.playButton3).setEnabled(recorder==null && ((SsoundWrong!=null && !SsoundWrong.equals("") && !SsoundWrong.equals("null")) || (ttsInited && utteranceDone)));
-        findViewById(R.id.delButton3).setEnabled(recorder==null && SsoundWrong!=null && !SsoundWrong.equals("") && !SsoundWrong.equals("null"));
-
-        ((ImageView)findViewById(R.id.recButton4)).setImageResource(recorder==null?android.R.drawable.ic_btn_speak_now:android.R.drawable.ic_menu_save);
-        findViewById(R.id.playButton4).setEnabled(recorder==null && ((SsoundRight!=null && !SsoundRight.equals("") && !SsoundRight.equals("null")) || (ttsInited && utteranceDone)));
-        findViewById(R.id.delButton4).setEnabled(recorder==null && SsoundRight!=null && !SsoundRight.equals("") && !SsoundRight.equals("null"));
+        findViewById(R.id.recButton1).setEnabled(recorder==null && utteranceDone);
+        findViewById(R.id.recButton2).setEnabled(recorder==null && utteranceDone);
+        findViewById(R.id.recButton3).setEnabled(recorder==null && utteranceDone);
+        findViewById(R.id.recButton4).setEnabled(recorder==null && utteranceDone);
+        if (recorder==null) {
+            ((ImageView) findViewById(R.id.recButton1)).clearColorFilter();
+            ((ImageView) findViewById(R.id.recButton2)).clearColorFilter();
+            ((ImageView) findViewById(R.id.recButton3)).clearColorFilter();
+            ((ImageView) findViewById(R.id.recButton4)).clearColorFilter();
+            ((ImageView)findViewById(R.id.recButton1)).setImageResource(android.R.drawable.ic_btn_speak_now);
+            ((ImageView)findViewById(R.id.recButton2)).setImageResource(android.R.drawable.ic_btn_speak_now);
+            ((ImageView)findViewById(R.id.recButton3)).setImageResource(android.R.drawable.ic_btn_speak_now);
+            ((ImageView)findViewById(R.id.recButton4)).setImageResource(android.R.drawable.ic_btn_speak_now);
+        }else {
+            findViewById(R.id.playButton1).setEnabled(false);
+            findViewById(R.id.playButton2).setEnabled(false);
+            findViewById(R.id.playButton3).setEnabled(false);
+            findViewById(R.id.playButton4).setEnabled(false);
+            if (lastViewClicked.getId()==R.id.recButton1) {
+                ((ImageView) findViewById(R.id.recButton1)).setColorFilter(Color.parseColor("#99ff0000"));
+                ((ImageView) findViewById(R.id.recButton1)).setImageResource(android.R.drawable.ic_menu_save);
+                findViewById(R.id.recButton1).setEnabled(true);
+            }
+            if (lastViewClicked.getId()==R.id.recButton2) {
+                ((ImageView) findViewById(R.id.recButton2)).setColorFilter(Color.parseColor("#99ff0000"));
+                ((ImageView) findViewById(R.id.recButton2)).setImageResource(android.R.drawable.ic_menu_save);
+                findViewById(R.id.recButton2).setEnabled(true);
+            }
+            if (lastViewClicked.getId()==R.id.recButton3) {
+                ((ImageView) findViewById(R.id.recButton3)).setColorFilter(Color.parseColor("#99ff0000"));
+                ((ImageView) findViewById(R.id.recButton3)).setImageResource(android.R.drawable.ic_menu_save);
+                findViewById(R.id.recButton3).setEnabled(true);
+            }
+            if (lastViewClicked.getId()==R.id.recButton4) {
+                ((ImageView) findViewById(R.id.recButton4)).setColorFilter(Color.parseColor("#99ff0000"));
+                ((ImageView) findViewById(R.id.recButton4)).setImageResource(android.R.drawable.ic_menu_save);
+                findViewById(R.id.recButton4).setEnabled(true);
+            }
+        }
+        findViewById(R.id.playButton1).setEnabled(recorder==null && utteranceDone && ((SsoundAnons!=null && !SsoundAnons.equals("") && !SsoundAnons.equals("null")) || ttsInited));
+        findViewById(R.id.playButton2).setEnabled(recorder==null && utteranceDone && ((SsoundQuestion!=null && !SsoundQuestion.equals("") && !SsoundQuestion.equals("null")) || ttsInited));
+        findViewById(R.id.playButton3).setEnabled(recorder==null && utteranceDone && ((SsoundWrong!=null && !SsoundWrong.equals("") && !SsoundWrong.equals("null")) || ttsInited));
+        findViewById(R.id.playButton4).setEnabled(recorder==null && utteranceDone && ((SsoundRight!=null && !SsoundRight.equals("") && !SsoundRight.equals("null")) || ttsInited));
+        if (utteranceDone){
+            ((ImageView) findViewById(R.id.playButton1)).clearColorFilter();
+            ((ImageView) findViewById(R.id.playButton2)).clearColorFilter();
+            ((ImageView) findViewById(R.id.playButton3)).clearColorFilter();
+            ((ImageView) findViewById(R.id.playButton4)).clearColorFilter();
+        }else{
+            if (lastViewClicked.getId()==R.id.playButton1) {
+                ((ImageView) findViewById(R.id.playButton1)).setColorFilter(Color.parseColor("#99ff0000"));
+            }
+            if (lastViewClicked.getId()==R.id.playButton2) {
+                ((ImageView) findViewById(R.id.playButton2)).setColorFilter(Color.parseColor("#99ff0000"));
+            }
+            if (lastViewClicked.getId()==R.id.playButton3) {
+                ((ImageView) findViewById(R.id.playButton3)).setColorFilter(Color.parseColor("#99ff0000"));
+            }
+            if (lastViewClicked.getId()==R.id.playButton4) {
+                ((ImageView) findViewById(R.id.playButton4)).setColorFilter(Color.parseColor("#99ff0000"));
+            }
+        }
+        findViewById(R.id.delButton1).setEnabled(SsoundAnons!=null && !SsoundAnons.equals("") && !SsoundAnons.equals("null"));
+        findViewById(R.id.delButton2).setEnabled(SsoundQuestion!=null && !SsoundQuestion.equals("") && !SsoundQuestion.equals("null"));
+        findViewById(R.id.delButton3).setEnabled(SsoundWrong!=null && !SsoundWrong.equals("") && !SsoundWrong.equals("null"));
+        findViewById(R.id.delButton4).setEnabled(SsoundRight!=null && !SsoundRight.equals("") && !SsoundRight.equals("null"));
 
         collapsingToolbarLayout.requestFocus();
     }
@@ -498,10 +563,10 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
                             }, new WriteAction.Default(), new Recorder.OnSilenceListener() {
                                 @Override
                                 public void onSilence(long silenceTime) {
-                                    Log.e(TAG, String.valueOf(silenceTime));
-                                    mytoast(false, "Обрезана тишина " + silenceTime + " ");
+                                    //Log.e(TAG, String.valueOf(silenceTime));
+                                    //mytoast(false, "Обрезана тишина " + silenceTime + " ");
                                 }
-                            }, 1000), file);
+                            }, 500), file);
                     try {
                         recorder.startRecording();
                     } catch (Exception e) {
@@ -528,6 +593,7 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
                 view.postDelayed(new Runnable() {
                     @Override public void run() {
                         animateVoice(lastViewClicked,0);
+                        soundsChanged=true;
                         updateCardInfo();
                     }
                 },100);
@@ -554,26 +620,58 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
                         else if (lastViewClicked.getId()==R.id.playButton2)
                             s="Покажи, где "+s+"?";
                         else if (lastViewClicked.getId()==R.id.playButton3)
-                            s="Нет, это не "+s+"...";
+                            s="Неверно, это - "+s+"...";
                         else if (lastViewClicked.getId()==R.id.playButton4)
-                            s="Правильно, это "+s+"!!!";
+                            s="Правильно, это - "+s+"!!!";
                         if (tts.isLanguageAvailable(Locale.getDefault()) < 0) {
-                            Log.d(TAG,"tts translit: "+(new Converter()).convert(s));
-                            tts.speak((new Converter()).convert(s), TextToSpeech.QUEUE_FLUSH, null);
+                            Log.d(TAG,"tts translit: "+(new Converter()).convert(s,false));
+                            tts.speak((new Converter()).convert(s,false), TextToSpeech.QUEUE_FLUSH, null);
                         }else
                             tts.speak(s, TextToSpeech.QUEUE_FLUSH, null);
 
                     }
                 }).start();
             }else {
-                if (view.getId()==R.id.playButton1)
+                soundLen=3000;
+                if (view.getId()==R.id.playButton1) {
+                    soundLen=Math.max(2000,soundDuration.getSoundDuration(1,Environment.getExternalStorageDirectory()+"/"+SsoundAnons));
                     mSoundPool.play(soundAnons, 1, 1, 1, 0, 1f);
-                else if (view.getId()==R.id.playButton2)
+                }else if (view.getId()==R.id.playButton2) {
+                    soundLen=Math.max(2000,soundDuration.getSoundDuration(1,Environment.getExternalStorageDirectory()+"/"+soundQuestion));
                     mSoundPool.play(soundQuestion, 1, 1, 1, 0, 1f);
-                else if (view.getId()==R.id.playButton3)
+                }else if (view.getId()==R.id.playButton3) {
+                    soundLen=Math.max(2000,soundDuration.getSoundDuration(1,Environment.getExternalStorageDirectory()+"/"+soundWrong));
                     mSoundPool.play(soundWrong, 1, 1, 1, 0, 1f);
-                else if (view.getId()==R.id.playButton4)
+                }else if (view.getId()==R.id.playButton4) {
+                    soundLen=Math.max(2000,soundDuration.getSoundDuration(1,Environment.getExternalStorageDirectory()+"/"+soundRight));
                     mSoundPool.play(soundRight, 1, 1, 1, 0, 1f);
+                }
+                if (soundLen>0){
+                    new Thread(new Runnable() {
+                        public void run() {
+                            utteranceDone = false;
+                            runOnUiThread(new Runnable() {
+                                public void run() {
+                                    //Log.d(TAG,"soundLen="+soundLen);
+                                    updateCardInfo();
+                                }
+                            });
+                            try {
+                                TimeUnit.MILLISECONDS.sleep(soundLen);
+                            } catch (InterruptedException e) {
+                                Log.e(TAG,""+e);
+                            }
+                            runOnUiThread(new Runnable() {
+                                public void run() {
+                                    utteranceDone = true;
+                                    updateCardInfo();
+                                    //Log.d(TAG,"soundLen end");
+                                }
+                            });
+                        }
+                    }).start();
+
+                }
             }
         } else if (view.getId()==R.id.delButton1 || view.getId()==R.id.delButton2 || view.getId()==R.id.delButton3 || view.getId()==R.id.delButton4) {
             new AlertDialog.Builder(TheCardActivity.this)
@@ -591,6 +689,7 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
                             else if (lastViewClicked.getId()==R.id.delButton4)
                                 db.execSQL("update cards set right=\"\" where id="+cardID);
                             mytoast(false,"Запись голоса удалена");
+                            soundsChanged=true;
                             updateCardInfo();
                         }
                     })
@@ -605,8 +704,10 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
             finish();//supportFinishAfterTransition();
         }
     }
-    private void animateVoice(final View view, final float maxPeak) {
-        view.animate().scaleX(1 + maxPeak).scaleY(1 + maxPeak).setDuration(10).start();
+    private void animateVoice(View view, float maxPeak) {
+        view.setScaleX(1 + maxPeak);
+        view.setScaleY(1 + maxPeak);
+        //view.animate().scaleX(1 + maxPeak).scaleY(1 + maxPeak).setDuration(10).start();
     }
     private AudioSource mic() {
         return new AudioSource.Smart(MediaRecorder.AudioSource.MIC, AudioFormat.ENCODING_PCM_16BIT, AudioFormat.CHANNEL_IN_MONO, 44100);
@@ -685,6 +786,7 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
 
 
     void initTTS() {
+        collapsingToolbarLayout.setTitle(cardTitle+" - загружается синтезатор голоса...");
         tts = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
             @Override
             public void onInit(int status) {

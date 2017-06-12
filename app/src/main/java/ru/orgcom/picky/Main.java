@@ -17,6 +17,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.Drawable;
 import android.media.ExifInterface;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -48,6 +49,7 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.animation.Animation;
 import android.view.animation.RotateAnimation;
+import android.webkit.MimeTypeMap;
 import android.widget.AdapterView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -68,6 +70,8 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Locale;
+
+import static android.R.attr.path;
 
 public class Main extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener, AdapterView.OnItemClickListener, View.OnClickListener {
     String TAG = "djd";
@@ -190,7 +194,7 @@ public class Main extends AppCompatActivity implements NavigationView.OnNavigati
                         });
                         Cursor c = db.rawQuery("select id from cards", null);
                         c.moveToLast();
-                        int lastId = c.getInt(c.getColumnIndex("id"));
+                        int lastId = c.getCount()>0?c.getInt(c.getColumnIndex("id")):0;
                         c.close();
 
                         String pic=images.get(i).getPath();
@@ -267,6 +271,28 @@ public class Main extends AppCompatActivity implements NavigationView.OnNavigati
             updateCards();
             fab.setVisibility(cardsAdapter.purgeMode?View.GONE:View.VISIBLE);
             return true;
+        } else if (id == R.id.action_settings_all) {
+            if (cardsAdapter.purgeMode) {
+                cardsAdapter.purgeMode = false;
+                fab.setVisibility(cardsAdapter.purgeMode?View.GONE:View.VISIBLE);
+            }
+            new AlertDialog.Builder(Main.this)
+                    .setTitle("Удалить все карточки?")
+                    .setMessage("Файлы с картинками останутся в памяти.")
+                    .setPositiveButton("Да", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialogInterface, int i) {
+                            db.execSQL("delete from cards");
+                            updateCards();
+                        }
+                    })
+                    .setNegativeButton("Нет", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialogInterface, int i) {
+                        }
+                    })
+                    .setCancelable(true)
+                    .show();
         }
         return super.onOptionsItemSelected(item);
     }
@@ -277,12 +303,58 @@ public class Main extends AppCompatActivity implements NavigationView.OnNavigati
         int id = item.getItemId();
         if (id == R.id.nav_tester) {
             startActivity(new Intent(Main.this, ShowMeActivity.class));
+        } else if (id == R.id.nav_share) {
+            openFolder();
         }
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         drawer.closeDrawer(GravityCompat.START);
         return true;
     }
+    void openFolder(){
+        new AlertDialog.Builder(Main.this)
+                .setTitle("Где лежат отчёты")
+                .setMessage("Папка SDCARD/pickyreports/\n\nВ случае проблем подключите планшет к ПК в режим устройства хранения\n\nРасширенный менеджмент будет позднее.")
+                .setPositiveButton("Открыть папку", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        Uri selectedUri = Uri.parse(Environment.getExternalStorageDirectory() + "/pickyreports/");
+                        Intent intent = new Intent(Intent.ACTION_VIEW);
+                        intent.setDataAndType(selectedUri, "resource/folder");
+                        if (intent.resolveActivityInfo(getPackageManager(), 0) != null) {
+                            startActivity(intent);
+                        } else {
+                            // if you reach this place, it means there is no any file explorer app installed on your device
+                            intent = new Intent(Intent.ACTION_GET_CONTENT);
+                            intent.addCategory(Intent.CATEGORY_OPENABLE);
+                            intent.setDataAndType(selectedUri, "text/csv");
+                            if (intent.resolveActivityInfo(getPackageManager(), 0) != null) {
+                                startActivity(Intent.createChooser(intent, "Открыть папку"));
+                            } else {
+                                intent = new Intent();
+                                intent.setAction(android.content.Intent.ACTION_VIEW);
+                                File file = new File(Environment.getExternalStorageDirectory() + "/pickyreports/");
+                                MimeTypeMap mime = MimeTypeMap.getSingleton();
+                                String ext = file.getName().substring(file.getName().indexOf(".") + 1);
+                                String type = mime.getMimeTypeFromExtension(ext);
+                                intent.setDataAndType(Uri.fromFile(file), type);
+                                if (intent.resolveActivityInfo(getPackageManager(), 0) != null) {
+                                    startActivity(intent);
+                                } else {
+                                    mytoast(true,"Никак. Запускайте сторонний диспетчер папок.");
+                                }
 
+                            }
+                        }
+                    }
+                })
+                .setNegativeButton("Ок", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                    }
+                })
+                .setCancelable(true)
+                .show();
+    }
     @Override
     public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
         int[] iid = (int[]) view.getTag();

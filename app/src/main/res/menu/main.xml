@@ -7,4 +7,9 @@
         android:title="Выбрать и удалить"
         app:showAsAction="never"
         android:checkable="true"/>
+    <item
+        android:id="@+id/action_settings_all"
+        android:orderInCategory="100"
+        android:title="Очистить всё"
+        app:showAsAction="never"/>
 </menu>

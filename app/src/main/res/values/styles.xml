@@ -30,4 +30,15 @@
         <item name="android:background">@color/black_overlay</item>
     </style>
 
+    <!--Floating label text style-->
+    <style name="MyHintText" parent="TextAppearance.AppCompat.Small">
+        <item name="android:textColor">#c1c1c1</item>
+    </style>
+
+    <!--Input field style-->
+    <style name="MyEditText" parent="Theme.AppCompat.Light">
+        <item name="colorControlNormal">#c1c1c1</item>
+        <item name="colorControlActivated">#ffffff</item>
+    </style>
+
 </resources>

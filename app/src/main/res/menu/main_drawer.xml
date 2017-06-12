@@ -19,7 +19,7 @@
             android:id="@+id/nav_share"
             android:icon="@drawable/ic_menu_share"
             android:title="Протоколы тестов"
-            android:enabled="false"/>
+            android:enabled="true"/>
     </group>
     <item android:title="Прочее">
         <menu>

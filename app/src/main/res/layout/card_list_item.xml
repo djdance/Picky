@@ -23,8 +23,8 @@
 
         <ImageView
             android:id="@+id/cardIco"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
             android:adjustViewBounds="true"
             android:cropToPadding="true"
             android:maxWidth="100dp"
@@ -49,13 +49,15 @@
 
     <ImageButton
         android:id="@+id/deleteButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="50dp"
+        android:layout_height="match_parent"
         android:layout_alignParentRight="true"
         android:layout_centerVertical="true"
         android:layout_weight="1"
         android:background="@null"
         android:visibility="gone"
-        android:src="@android:drawable/ic_delete" />
+        android:scaleType="centerCrop"
+        android:src="@android:drawable/ic_delete"
+        app:srcCompat="@drawable/ic_delete_forever" />
 
 </RelativeLayout>

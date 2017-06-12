@@ -17,7 +17,7 @@ public class Converter {
 
     public Converter() {
     }
-    public String convert(String string1) {
+    public String convert(String string1, boolean spaces) {
         string = string1.replace("а", "a");
         string = string.replace("б", "b");
         string = string.replace("в", "v");
@@ -84,6 +84,8 @@ public class Converter {
         string = string.replace("Э", "e");
         string = string.replace("Ю", "yu");
         string = string.replace("Я", "ya");
+        if (spaces)
+            string = string.replace(" ", "_");
         return string;
     }
 }
