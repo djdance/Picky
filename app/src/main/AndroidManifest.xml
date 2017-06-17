@@ -4,6 +4,7 @@
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <application
         android:allowBackup="true"
@@ -38,6 +39,15 @@
             android:label="@string/title_activity_show_me"
             android:parentActivityName=".Main"
             android:theme="@style/FullscreenTheme">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="ru.orgcom.picky.Main" />
+        </activity>
+        <activity
+            android:name=".pref"
+            android:label="@string/title_activity_settings"
+            android:theme="@android:style/Theme.DeviceDefault.Light.DarkActionBar"
+            android:parentActivityName=".Main">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value="ru.orgcom.picky.Main" />

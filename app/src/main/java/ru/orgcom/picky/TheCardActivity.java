@@ -59,9 +59,9 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.nguyenhoanglam.imagepicker.activity.ImagePicker;
-import com.nguyenhoanglam.imagepicker.activity.ImagePickerActivity;
-import com.nguyenhoanglam.imagepicker.model.Image;
+import com.esafirm.imagepicker.features.ImagePicker;
+import com.esafirm.imagepicker.features.ImagePickerActivity;
+import com.esafirm.imagepicker.model.Image;
 
 import java.io.File;
 import java.io.PrintWriter;
@@ -209,6 +209,10 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
 
             cardTitle=c.getString(c.getColumnIndex("title"));
             collapsingToolbarLayout.setTitle(cardTitle+" ");
+            ((TextView) findViewById(R.id.textHintAnons)).setText("- Посмотри, это - "+cardTitle+"!");
+            ((TextView) findViewById(R.id.textHintQuestion)).setText("- Покажи, где "+cardTitle+"?");
+            ((TextView) findViewById(R.id.textHintWrong)).setText("- Неверно, это не "+cardTitle+".");
+            ((TextView) findViewById(R.id.textHintRight)).setText("- Правильно, это - "+cardTitle+"!");
             if (c.getString(c.getColumnIndex("pic"))!=null && !c.getString(c.getColumnIndex("pic")).equals(""))
                 try {
                     ((ImageView) findViewById(R.id.ivProductImage)).setImageURI(Uri.parse(c.getString(c.getColumnIndex("pic"))));
@@ -273,7 +277,7 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
                     Log.e(TAG, "load sound4 " + e);
                 }
             }
-            if (!ttsInited && tts==null){
+            if (!ttsInited && tts==null && prefs.getBoolean("allowRobot",true)){
                 initTTS();
             }
         } else {
@@ -298,10 +302,6 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
             ((ImageView)findViewById(R.id.recButton3)).setImageResource(android.R.drawable.ic_btn_speak_now);
             ((ImageView)findViewById(R.id.recButton4)).setImageResource(android.R.drawable.ic_btn_speak_now);
         }else {
-            findViewById(R.id.playButton1).setEnabled(false);
-            findViewById(R.id.playButton2).setEnabled(false);
-            findViewById(R.id.playButton3).setEnabled(false);
-            findViewById(R.id.playButton4).setEnabled(false);
             if (lastViewClicked.getId()==R.id.recButton1) {
                 ((ImageView) findViewById(R.id.recButton1)).setColorFilter(Color.parseColor("#99ff0000"));
                 ((ImageView) findViewById(R.id.recButton1)).setImageResource(android.R.drawable.ic_menu_save);
@@ -323,10 +323,10 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
                 findViewById(R.id.recButton4).setEnabled(true);
             }
         }
-        findViewById(R.id.playButton1).setEnabled(recorder==null && utteranceDone && ((SsoundAnons!=null && !SsoundAnons.equals("") && !SsoundAnons.equals("null")) || ttsInited));
-        findViewById(R.id.playButton2).setEnabled(recorder==null && utteranceDone && ((SsoundQuestion!=null && !SsoundQuestion.equals("") && !SsoundQuestion.equals("null")) || ttsInited));
-        findViewById(R.id.playButton3).setEnabled(recorder==null && utteranceDone && ((SsoundWrong!=null && !SsoundWrong.equals("") && !SsoundWrong.equals("null")) || ttsInited));
-        findViewById(R.id.playButton4).setEnabled(recorder==null && utteranceDone && ((SsoundRight!=null && !SsoundRight.equals("") && !SsoundRight.equals("null")) || ttsInited));
+        findViewById(R.id.playButton1).setEnabled(recorder!=null || ( utteranceDone && ((SsoundAnons!=null && !SsoundAnons.equals("") && !SsoundAnons.equals("null")) || ttsInited)));
+        findViewById(R.id.playButton2).setEnabled(recorder!=null || ( utteranceDone && ((SsoundQuestion!=null && !SsoundQuestion.equals("") && !SsoundQuestion.equals("null")) || ttsInited)));
+        findViewById(R.id.playButton3).setEnabled(recorder!=null || ( utteranceDone && ((SsoundWrong!=null && !SsoundWrong.equals("") && !SsoundWrong.equals("null")) || ttsInited)));
+        findViewById(R.id.playButton4).setEnabled(recorder!=null || ( utteranceDone && ((SsoundRight!=null && !SsoundRight.equals("") && !SsoundRight.equals("null")) || ttsInited)));
         if (utteranceDone){
             ((ImageView) findViewById(R.id.playButton1)).clearColorFilter();
             ((ImageView) findViewById(R.id.playButton2)).clearColorFilter();
@@ -503,7 +503,7 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
                     if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.RECORD_AUDIO)) {
                         Snackbar.make(view, "Без записи приложение будeт озвучивать картинки голосом робота. Разрешить запись вашего голоса?",
                                 Snackbar.LENGTH_INDEFINITE)
-                                .setAction(R.string.ok, new View.OnClickListener() {
+                                .setAction("ОК", new View.OnClickListener() {
                                     @Override
                                     public void onClick(View view) {
                                         ActivityCompat.requestPermissions(TheCardActivity.this, new String[]{Manifest.permission.RECORD_AUDIO}, 50);
@@ -519,7 +519,7 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
                     if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
                         Snackbar.make(view, "Без доступа к памяти не получится сохранить ваш голос. Разрешить запись на карту памяти?",
                                 Snackbar.LENGTH_INDEFINITE)
-                                .setAction(R.string.ok, new View.OnClickListener() {
+                                .setAction("ОК", new View.OnClickListener() {
                                     @Override
                                     public void onClick(View view) {
                                         ActivityCompat.requestPermissions(TheCardActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 51);
@@ -601,6 +601,38 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
             }
         } else if (view.getId()==R.id.playButton1 || view.getId()==R.id.playButton2 || view.getId()==R.id.playButton3 || view.getId()==R.id.playButton4 ) {
             //Log.d(TAG,"playbutton: soundAnons="+soundAnons);
+            if (recorder!=null) {
+                if (lastViewClicked.getId()==R.id.playButton1) {
+                    onClick(findViewById(R.id.recButton1));
+                    view.postDelayed(new Runnable() {
+                        @Override public void run() {
+                            onClick(findViewById(R.id.playButton1));
+                        }
+                    },300);
+                }else if (lastViewClicked.getId()==R.id.playButton2) {
+                    onClick(findViewById(R.id.recButton2));
+                    view.postDelayed(new Runnable() {
+                        @Override public void run() {
+                            onClick(findViewById(R.id.playButton2));
+                        }
+                    },300);
+                }else if (lastViewClicked.getId()==R.id.playButton3) {
+                    onClick(findViewById(R.id.recButton3));
+                    view.postDelayed(new Runnable() {
+                        @Override public void run() {
+                            onClick(findViewById(R.id.playButton3));
+                        }
+                    },300);
+                }else if (lastViewClicked.getId()==R.id.playButton4){
+                    onClick(findViewById(R.id.recButton4));
+                    view.postDelayed(new Runnable() {
+                        @Override public void run() {
+                            onClick(findViewById(R.id.playButton4));
+                        }
+                    },300);
+                }
+                return;
+            }
             if ((view.getId()==R.id.playButton1 && soundAnons==0)
                     || (view.getId()==R.id.playButton2 && soundQuestion==0)
                     || (view.getId()==R.id.playButton3 && soundWrong==0)
@@ -729,7 +761,8 @@ public class TheCardActivity extends AppCompatActivity implements OnClickListene
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == 123 && resultCode == RESULT_OK && data != null) {
-            ArrayList<Image> images = data.getParcelableArrayListExtra(ImagePickerActivity.INTENT_EXTRA_SELECTED_IMAGES);
+            //ArrayList<Image> images = data.getParcelableArrayListExtra(ImagePickerActivity.INTENT_EXTRA_SELECTED_IMAGES);
+            ArrayList<Image> images = (ArrayList<Image>) ImagePicker.getImages(data);
             if (images.size()>0){
                 String pic=images.get(0).getPath();
                 Log.d(TAG,"pic path original="+pic);

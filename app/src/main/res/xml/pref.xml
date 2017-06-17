@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <PreferenceCategory android:title="основные настройки">
+        <SwitchPreference
+            android:key="colorFill"
+            android:defaultValue="true"
+            android:summary="Подсвечивать всю карточку красным или зеленым"
+            android:title="Заливать цветом">
+        </SwitchPreference>
+        <SwitchPreference
+            android:key="colorhint"
+            android:defaultValue="false"
+            android:summary="Оставлять подсветку неправильного"
+            android:title="Подсказка цветом">
+        </SwitchPreference>
+        <SwitchPreference
+            android:key="allowRobot"
+            android:defaultValue="true"
+            android:summary="Разрешить озвучку андроидом"
+            android:title="Голос робота">
+        </SwitchPreference>
+        <SwitchPreference
+            android:key="allowPluck"
+            android:defaultValue="true"
+            android:title="Звук нажатия">
+        </SwitchPreference>
+    </PreferenceCategory>
+    <PreferenceCategory
+        android:title="О программе"
+        android:icon="@drawable/ico"
+        android:key="about"
+        >
+        <PreferenceScreen
+            android:key="copyright"
+            android:title="(c) 2017 by ">
+        </PreferenceScreen>
+    </PreferenceCategory>
+</PreferenceScreen>

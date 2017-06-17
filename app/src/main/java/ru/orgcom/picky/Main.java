@@ -58,9 +58,9 @@ import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import com.nguyenhoanglam.imagepicker.activity.ImagePicker;
-import com.nguyenhoanglam.imagepicker.activity.ImagePickerActivity;
-import com.nguyenhoanglam.imagepicker.model.Image;
+import com.esafirm.imagepicker.features.ImagePicker;
+import com.esafirm.imagepicker.features.ImagePickerActivity;
+import com.esafirm.imagepicker.model.Image;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -179,7 +179,8 @@ public class Main extends AppCompatActivity implements NavigationView.OnNavigati
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == 123 && resultCode == RESULT_OK && data != null) {
-            final ArrayList<Image> images = data.getParcelableArrayListExtra(ImagePickerActivity.INTENT_EXTRA_SELECTED_IMAGES);
+            //final ArrayList<Image> images = data.getParcelableArrayListExtra(ImagePickerActivity.INTENT_EXTRA_SELECTED_IMAGES);
+            final ArrayList<Image> images = (ArrayList<Image>) ImagePicker.getImages(data);
             ((ProgressBar)findViewById(R.id.progressBar2)).setVisibility(View.VISIBLE);
             ((ProgressBar)findViewById(R.id.topProgressBar)).setVisibility(View.VISIBLE);
             ((ProgressBar)findViewById(R.id.topProgressBar)).setMax(images.size());
@@ -303,6 +304,8 @@ public class Main extends AppCompatActivity implements NavigationView.OnNavigati
         int id = item.getItemId();
         if (id == R.id.nav_tester) {
             startActivity(new Intent(Main.this, ShowMeActivity.class));
+        } else if (id == R.id.nav_manage) {
+            startActivity(new Intent(Main.this, pref.class));
         } else if (id == R.id.nav_share) {
             openFolder();
         }

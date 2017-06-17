@@ -15,6 +15,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Color;
 import android.graphics.PorterDuff;
+import android.graphics.Rect;
 import android.media.AudioManager;
 import android.media.SoundPool;
 import android.net.Uri;
@@ -30,19 +31,24 @@ import android.transition.TransitionManager;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.MenuItem;
 import android.support.v4.app.NavUtils;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.Animation;
 import android.view.animation.AnticipateOvershootInterpolator;
 import android.view.animation.BounceInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.view.animation.LinearInterpolator;
+import android.view.animation.ScaleAnimation;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -61,7 +67,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.Locale;
 
-public class ShowMeActivity extends AppCompatActivity implements View.OnClickListener {
+public class ShowMeActivity extends AppCompatActivity implements View.OnTouchListener,View.OnClickListener {
     String TAG = "djd";
     SharedPreferences prefs;
     public static SQLiteDatabase db;
@@ -73,17 +79,22 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
     RelativeLayout gameRL;
     com.google.android.flexbox.FlexboxLayout gameFlexLayout;
     int buttonsAmount=4;
-    ArrayList<ImageButton> imageButtons=new ArrayList<>();
+    ArrayList<ImageView> ImageViews=new ArrayList<>();
     int cardId=0;
     SoundDuration soundDuration;
     String kidName="";
-
+    long lastUsed;
     SoundPool mSoundPool=null;
+    SoundPool spTapper;
+    int rawIdpluck;
+    LinearLayout tapper;
     TextToSpeech tts=null;
     boolean ttsChecked=false,ttsInited=false;
     String reportsfiledir=Environment.getExternalStorageDirectory()+"/pickyreports", reportsFileName="";
     SimpleDateFormat _sdfWatchUID = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss_SSS");
     SimpleDateFormat _sdfWatchTime = new SimpleDateFormat("dd.MM.yyyy HH:mm");
+    boolean touched=false;
+    int dummyTries=0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -119,9 +130,13 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
         density = metrics.scaledDensity;
 
         gameRL=(RelativeLayout) findViewById(R.id.gameRL);
+        gameRL.setOnTouchListener(this);
         gameFlexLayout=(FlexboxLayout) findViewById(R.id.gameFlexboxLayout);
 
         soundDuration=new SoundDuration(getApplicationContext());
+        tapper=(LinearLayout) findViewById(R.id.tapper);
+        spTapper=new SoundPool(3, AudioManager.STREAM_MUSIC, 0);
+        rawIdpluck=spTapper.load(getApplicationContext(), getResources().getIdentifier("pluck", "raw", getPackageName()), 1);
 
         findViewById(R.id.kidName).clearFocus();
         ((EditText)findViewById(R.id.kidNameEditText)).setOnFocusChangeListener(new View.OnFocusChangeListener() {
@@ -144,6 +159,7 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
                 return true;
             }
         });
+        lastUsed=System.currentTimeMillis()+10000;
 
 
         connect2db();
@@ -161,6 +177,7 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
     @Override
     public void onResume() {
         super.onResume();
+        lastUsed=System.currentTimeMillis()+5000;
         hide();
     }
     @Override
@@ -190,7 +207,7 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
 
     void redrawAll(final boolean withDimmer){
         gameFlexLayout.removeAllViews();
-        imageButtons.clear();
+        ImageViews.clear();
 
         int side= (int) Math.sqrt(dispWidth*dispHeight/buttonsAmount);
         while ((Math.floor(dispWidth/side)*Math.floor(dispHeight/side))<buttonsAmount && side>50){
@@ -203,40 +220,42 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
             finish();
             return;
         }
-        Cursor c= db.rawQuery("select * from cards", null);
-        if (c.getCount() > 0) {
-            if (!ttsChecked && !ttsInited && tts==null) {
-                //узнаем нужен ли ТТС
+
+        String s="select * from cards where 1=1 ";
+        if (!ttsChecked && !ttsInited && tts==null && prefs.getBoolean("allowRobot",true)) {
+            //узнаем нужен ли ТТС
+            ttsChecked = true;
+            Cursor c= db.rawQuery(s, null);
+            if (c.getCount() > 0) {
+                c.moveToFirst();
                 boolean isTTSneeded = false;
-                String SsoundAnons = "";
+                //String SsoundAnons = "";
                 String SsoundQuestion = "";
                 String SsoundRight = "";
                 String SsoundWrong = "";
                 String pic = "";
-                c.moveToFirst();
                 do {
                     pic = c.getString(c.getColumnIndex("pic"));
-                    SsoundAnons = c.getString(c.getColumnIndex("anons"));
+                    //SsoundAnons = c.getString(c.getColumnIndex("anons"));
                     SsoundQuestion = c.getString(c.getColumnIndex("question"));
                     SsoundRight = c.getString(c.getColumnIndex("right"));
                     SsoundWrong = c.getString(c.getColumnIndex("wrong"));
-                    if (pic!=null && !pic.equals("") && !pic.equals("null") &&
-                             ( SsoundAnons==null || SsoundAnons.equals("") || SsoundAnons.equals("null")
-                            || SsoundQuestion==null || SsoundQuestion.equals("") || SsoundQuestion.equals("null")
-                            || SsoundRight==null || SsoundRight.equals("") || SsoundRight.equals("null")
-                            || SsoundWrong==null || SsoundWrong.equals("") || SsoundWrong.equals("null")
-                             )
-                            ){
-                        isTTSneeded=true;
+                    if (pic != null && !pic.equals("") && !pic.equals("null") &&
+                            (/*SsoundAnons == null || SsoundAnons.equals("") || SsoundAnons.equals("null")
+                                    ||*/ SsoundQuestion == null || SsoundQuestion.equals("") || SsoundQuestion.equals("null")
+                                    || SsoundRight == null || SsoundRight.equals("") || SsoundRight.equals("null")
+                                    || SsoundWrong == null || SsoundWrong.equals("") || SsoundWrong.equals("null")
+                            )
+                            ) {
+                        isTTSneeded = true;
                         break;
                     }
                 } while (c.moveToNext());
-                ttsChecked=true;
-                if (isTTSneeded){
-                    Log.d(TAG,"загрузка TTS...");
+                if (isTTSneeded) {
+                    Log.d(TAG, "загрузка TTS...");
                     gameFlexLayout.setVisibility(View.GONE);
                     findViewById(R.id.progressBar2).setVisibility(View.VISIBLE);
-                    ((TextView)findViewById(R.id.hint)).setText("Загружается синтезированный голос. Ждите несколько секунд...");
+                    ((TextView) findViewById(R.id.hint)).setText("Загружается синтезированный голос. Ждите несколько секунд...");
                     tts = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
                         @Override
                         public void onInit(final int status) {
@@ -249,10 +268,10 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
                                             ttsInited = true;
                                         }
                                     }
-                                    Log.d(TAG,"загрузка завершена, ttsInited="+ttsInited);
+                                    Log.d(TAG, "загрузка завершена, ttsInited=" + ttsInited);
                                     runOnUiThread(new Runnable() {
                                         public void run() {
-                                            ((TextView)findViewById(R.id.hint)).setText(ttsInited?"Все готово!":"Синтезатор голоса здесь отсутствует :(");
+                                            ((TextView) findViewById(R.id.hint)).setText(ttsInited ? "Все готово!" : "Синтезатор голоса здесь отсутствует :(");
                                             gameFlexLayout.setVisibility(View.VISIBLE);
                                             findViewById(R.id.progressBar2).setVisibility(View.GONE);
                                             redrawAll(withDimmer);
@@ -265,8 +284,13 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
                     return;
                 }
             }
+            c.close();
+        }
 
-
+        if (tts==null || !ttsInited)
+            s+=" and question<>'' and right<>'' and wrong<>''";
+        Cursor c= db.rawQuery(s, null);
+        if (c.getCount() > 0) {
             int i = 0, tries = 0, triesRnd, randomIndex;
             HashSet<Integer> cardsUsed = new HashSet<>();
             while (i < buttonsAmount && tries < 100) {
@@ -280,20 +304,28 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
                 for (int ii = 0; ii < randomIndex; ii++)
                     c.moveToNext();
                 //Log.d(TAG,"randomI="+randomIndex+" for "+c.getString(c.getColumnIndex("title")));
-                ImageButton bu = new ImageButton(this);
-                bu.setOnClickListener(this);
+                LayoutInflater inflater = getLayoutInflater();
+                View view = inflater.inflate(R.layout.card_imageview_for_inflater, null, false);
+                ImageView bu = (ImageView) view.findViewById(R.id.bu);
+                //ImageView bu = new ImageView(this);
+                //bu.setClickable(false);
+                //bu.setOnClickListener(this);
                 bu.setTag(c.getInt(c.getColumnIndex("id")));
-                bu.setBackgroundColor(Color.TRANSPARENT);// dResource(R.drawable.cloudbox_blue);
-                bu.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                int padd=(int)(15*density);
+                //bu.setBackgroundColor(Color.TRANSPARENT);
+                //bu.setBackgroundResource(R.drawable.cloudbox_blue);
+                RelativeLayout.LayoutParams p1 = new RelativeLayout.LayoutParams((int)(side-5*density), (int)(side-5*density));
+                /*int padd=(int)(10*density);
                 bu.setPadding(padd,padd,padd,padd);
-                ViewGroup.LayoutParams p1 = new ViewGroup.LayoutParams(side, side);
+                p1.setMargins(padd,padd,padd,padd);
+                bu.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                bu.setAdjustViewBounds(true);
+                bu.setCropToPadding(true);// */
                 bu.setLayoutParams(p1);
                 if (c.getString(c.getColumnIndex("pic")) != null && !c.getString(c.getColumnIndex("pic")).equals("")) {
                     try {
                         bu.setImageURI(Uri.parse(c.getString(c.getColumnIndex("pic"))));
                         gameFlexLayout.addView(bu);
-                        imageButtons.add(bu);
+                        ImageViews.add(bu);
                         i++;
                         cardsUsed.add(randomIndex);
                         //Log.d(TAG,"tries="+tries+", triesRnd="+triesRnd);
@@ -310,53 +342,69 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
             findViewById(R.id.dimmerButton).setVisibility(View.VISIBLE);
             findViewById(R.id.kidName).setVisibility(View.VISIBLE);
         } else {
-            askme();
+            askme(false);
         }
     }
 
-    void askme(){
-        //Log.d(TAG,"askme: imageButtons.size="+imageButtons.size());
+    void cleanCards(){
+        for (int i = 0; i < ImageViews.size(); i++) {
+            ImageViews.get(i).clearColorFilter();
+            ImageViews.get(i).setBackgroundColor(Color.TRANSPARENT);
+            if (ImageViews.get(i).getAlpha()<=0.8f)
+                ImageViews.get(i).setAlpha(ImageViews.get(i).getAlpha()+0.8f);
+        }
+    }
+    void askme(boolean askCurrent){
+        //Log.d(TAG,"askme: ImageViews.size="+ImageViews.size());
         ignoreTaps=true;
-        if (imageButtons.size()==0){
-            mytoast("Нет ни одной карточки");
-            finish();
-            return;
+        if (!askCurrent) {
+            if (ImageViews.size() == 0) {
+                mytoast("Нет ни одной карточки");
+                finish();
+                return;
+            }
+            cleanCards();
+            int randI, tries = 0;
+            do {
+                randI = (int) (Math.random() * ImageViews.size());
+                tries++;
+            } while (ImageViews.get(randI).getAlpha() < 1 && tries < 100);
+            if (tries >= 100) {
+                redrawAll(false);
+                return;
+            }
+            ImageViews.get(randI).setAlpha(0.99f);
+            cardId = (int) (ImageViews.get(randI).getTag());
+        } else {
+            if (!prefs.getBoolean("colorhint",false))
+                cleanCards();
         }
-        for (int i=0;i<imageButtons.size();i++){
-            imageButtons.get(i).clearColorFilter();
-        }
-        int randI,tries=0;
-        do {
-            randI=(int) (Math.random()*imageButtons.size());
-            tries++;
-        } while (imageButtons.get(randI).getAlpha()<1 && tries<100);
-        if (tries>=100){
-            redrawAll(false);
-            return;
-        }
-        imageButtons.get(randI).setAlpha(0.99f);
-        cardId=(int)(imageButtons.get(randI).getTag());
-        if (db==null || !db.isOpen()) {
+        /*if (db==null || !db.isOpen()) {
             finish();
             return;
         }
         Cursor c= db.rawQuery("select * from cards where id="+cardId, null);
         if (c.getCount() > 0) {
-            c.moveToFirst();
-            sayIt(0,cardId);
+            c.moveToFirst();*/
+            final long askDuration=sayIt(0,cardId);
+        ignoreTaps=true;
             new Thread(new Runnable() {
                 public void run() {
+                    Log.d(TAG,"askme said, wait for "+askDuration);
                     try {
-                        Thread.sleep(2000);
+                        Thread.sleep(askDuration);
                     } catch (InterruptedException e) {
                         e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
                     }
+                    Log.d(TAG,"askme said, waited. Alllow to answer");
                     ignoreTaps=false;
                 }
             }).start();
-        }
-        c.close();
+        //}
+        //c.close();
     }
+
+
     long sayIt(int casse, int id){
         //casse: 0 - ask
         //1 - wrong
@@ -386,22 +434,22 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
                 addon="wrong";
                 switch ((int)(Math.random()*6)){
                     case 0:
-                        prefix="Нет, это ";
+                        prefix="Нет, это не ";
                         break;
                     case 1:
-                        prefix="Не угадал, это ";
+                        prefix="Не угадал, это не ";
                         break;
                     case 2:
-                        prefix="Нет, ошибка! Ведь это ";
+                        prefix="Нет, ошибка! Это не ";
                         break;
                     case 3:
-                        prefix="Ответ неверный. Это ";
+                        prefix="Ответ неверный. Не ";
                         break;
                     case 4:
-                        prefix="Нет-нет, не здесь. Это ";
+                        prefix="Нет-нет, не здесь. Это не ";
                         break;
                     default:
-                        prefix="Неправильно, это ";
+                        prefix="Неправильно, это не ";
                 }
                 break;
             case 2:
@@ -442,17 +490,17 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
             prefix+=c.getString(c.getColumnIndex("title"));
         }
         c.close();
-        Log.d(TAG,prefix+", "+voiceRec);
+        Log.d(TAG,"sayIt: "+prefix+", "+voiceRec);
         final String finalPrefix = prefix;
         runOnUiThread(new Runnable() {
             public void run() {
-                ((TextView)findViewById(R.id.hint)).setText(kidName+": "+finalPrefix);
+                ((TextView)findViewById(R.id.hint)).setText(kidName+(kidName.equals("")?"":": ")+finalPrefix);
             }
         });
         if (voiceRec==null || voiceRec.equals("") || voiceRec.equals("null")) {
             new Thread(new Runnable() {
                 public void run() {
-                    if (tts.isLanguageAvailable(Locale.getDefault()) < 0) {
+                    if (tts==null || !ttsInited || tts.isLanguageAvailable(Locale.getDefault()) < 0) {
                     } else
                         tts.speak(finalPrefix, TextToSpeech.QUEUE_FLUSH, null);
 
@@ -483,15 +531,19 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
     void analyze(View view){
         int id=(int)(view.getTag());
         //Log.d(TAG,"Это id "+id);
+        ignoreTaps=true;
         if (id!=cardId){
             //wrong
-            ((ImageButton)view).setColorFilter(Color.parseColor("#99ff0000"));
-            wrongAnimation(view,false,sayIt(1, id));
+            if (prefs.getBoolean("colorFill",true))
+                ((ImageView)view).setColorFilter(Color.parseColor("#99ff0000"));
+            ((ImageView)view).setBackgroundResource(R.drawable.cloudbox_red);
+            wrongAnimation(view,false,sayIt(1, cardId));
         } else {
             //right
-            sayIt(2, id);
-            ((ImageButton)view).setColorFilter(Color.parseColor("#7700ff00"));
-            winAnimation(view);
+            if (prefs.getBoolean("colorFill",true))
+                ((ImageView)view).setColorFilter(Color.parseColor("#7700ff00"));
+            ((ImageView)view).setBackgroundResource(R.drawable.cloudbox_green);
+            winAnimation(view,sayIt(2, cardId));
         }
         if (!kidName.equals(""))
             saveReport(getCardTitle(cardId)+"\t"+getCardTitle(id));
@@ -531,6 +583,7 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
         return res;
     }
     void animateMe(final View view){
+        analyze(view);
         AnimatorSet animSetB=new AnimatorSet();
         animSetB.addListener(new Animator.AnimatorListener() {
             @Override
@@ -540,7 +593,7 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
 
             @Override
             public void onAnimationEnd(Animator animator) {
-                analyze(view);
+                //analyze(view);
             }
 
             @Override
@@ -554,11 +607,11 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
             }
         });
         ObjectAnimator anim1B = ObjectAnimator.ofFloat(view, "scaleY", 1, 0.8f);
-        anim1B.setDuration(400);
+        anim1B.setDuration(250);
         anim1B.setRepeatCount(1);
         anim1B.setRepeatMode(ValueAnimator.REVERSE);
         ObjectAnimator anim2B = ObjectAnimator.ofFloat(view, "scaleX", 1, 0.8f);
-        anim2B.setDuration(400);
+        anim2B.setDuration(250);
         anim2B.setRepeatCount(1);
         anim2B.setRepeatMode(ValueAnimator.REVERSE);
         animSetB.play(anim1B).with(anim2B);
@@ -566,11 +619,94 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
         animSetB.start();
     }
     @Override
+    public boolean onTouch(View v, MotionEvent event) {
+        //Log.d(TAG, "onTouchEvent. Count=" + event.getPointerCount()+", view tag="+v.getTag().toString());
+        lastUsed=System.currentTimeMillis()+5000;
+        float X=-1, Y=-1;
+        final int action = event.getAction();
+        switch (action & MotionEvent.ACTION_MASK) {
+            case MotionEvent.ACTION_POINTER_DOWN: {
+                if (!touched){
+                    final int pointerIndex = (action & MotionEvent.ACTION_POINTER_INDEX_MASK) >> MotionEvent.ACTION_POINTER_INDEX_SHIFT;
+                    //final int pointerId = event.getPointerId(pointerIndex);
+                    X = event.getX(pointerIndex)+v.getLeft();
+                    Y = event.getY(pointerIndex)+v.getTop();
+                    //Log.d(TAG,"multi: view "+v.getTag().toString()+", pointer index="+pointerIndex+", pointerId="+pointerId);
+                    //Log.d(TAG,"multi size="+event.getSize(pointerIndex));
+                    //Log.d(TAG,"multi press="+event.getPressure(pointerIndex));
+                    touched=true;
+                }
+                break;
+            }
+            case MotionEvent.ACTION_POINTER_UP: {
+                //Log.d(TAG,"ACTION_POINTER_UP");
+                touched=false;
+                break;
+            } //*/
+            case MotionEvent.ACTION_DOWN: {
+                if (!touched){
+                    X = event.getX()+v.getLeft();
+                    Y = event.getY()+v.getTop();
+                    //Log.d(TAG,"view "+v.getTag().toString());
+                    //Log.d(TAG,"size="+event.getSize());
+                    //Log.d(TAG,"press="+event.getPressure());
+                    touched=true;
+                }
+                break;
+            }
+            case MotionEvent.ACTION_UP: {
+                //Log.d(TAG,"ACTION_UP");
+                touched=false;
+                break;
+            } //*/
+        }
+        if (X==-1 && Y==-1)
+            return false;
+
+        Rect r=new Rect();
+        final ScaleAnimation up = new ScaleAnimation(0.7f, 1.0f, 0.7f, 1.0f);
+        up.setFillAfter(true);
+        up.setDuration(50);
+
+        int i;
+        for (i=0;i<ImageViews.size();i++){
+            ImageViews.get(i).getGlobalVisibleRect(r);
+            if (r!=null && r.contains((int) X, (int) Y)) {
+                Log.d(TAG,"----------------------------> ImageViews["+i+"] попали");
+                break;
+            }
+        }
+        if (ignoreTaps || i<0 || i>=ImageViews.size()){
+            dummyTries++;
+            Log.d(TAG,"dummyTries="+dummyTries);
+            if (dummyTries>20){
+                dummyTries=0;
+                Log.d(TAG,"dummy RESET НЕ НАЖИМАЙТЕ!!");
+            }
+            if (!ignoreTaps && prefs.getBoolean("allowPluck",true)) {
+                spTapper.play(rawIdpluck, 1, 1, 1, 0, (float) (0.7f + (Math.random() * 0.6f)));
+            }
+            tap(X, Y);
+        } else {
+            ignoreTaps=true;
+            animateMe(ImageViews.get(i));
+            dummyTries=0;
+        }
+
+        //try {
+        //} catch (Exception e) {
+        //    Log.e(TAG, e.getMessage().toString());//e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+        //}
+        return true;
+
+    }
+
+    @Override
     public void onClick(View view) {
-        if (view.getTag()!=null && !ignoreTaps){
+        /*if (view.getTag()!=null && !ignoreTaps){
             ignoreTaps=true;
             animateMe(view);
-        } else if (view.getId()==R.id.dimmerButton) {
+        } else */if (view.getId()==R.id.dimmerButton) {
             if (findViewById(R.id.progressBar2).getVisibility()==View.VISIBLE)
                 return;
             findViewById(R.id.dimmerRL).setVisibility(View.GONE);
@@ -578,15 +714,49 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
             findViewById(R.id.kidName).setVisibility(View.GONE);
             if (!kidName.equals(""))
                 saveReport("Отчёт по испытуемому "+kidName+". "+_sdfWatchTime.format(new Date()));
-            askme();
+            askme(false);
         }
     }
-    void winAnimation(View view){
-        for (int i=0;i<imageButtons.size();i++){
-            if (imageButtons.get(i)!=view) {
-                imageButtons.get(i).setColorFilter(Color.parseColor("#990099cc"));
+
+    public void tap(float X,float Y){
+        tapper.setX(X);
+        tapper.setY(Y);
+        //tapper.setAlpha(0.5f);
+        tapper.setVisibility(View.VISIBLE);
+
+        float r= (float) (0.8f+Math.random()*0.4f);
+        ObjectAnimator anim1 = ObjectAnimator.ofFloat(tapper, "scaleX", 0.3f,r);
+        anim1.setInterpolator(new AnticipateOvershootInterpolator());//DecelerateInterpolator());
+        ObjectAnimator anim2 = ObjectAnimator.ofFloat(tapper, "scaleY", 0.3f,r);
+        anim2.setInterpolator(new AnticipateOvershootInterpolator());//BounceInterpolator());
+        AnimatorSet animSet=new AnimatorSet();
+        animSet.addListener(new Animator.AnimatorListener() {
+            public void onAnimationStart(Animator animation) {
+            }
+            public void onAnimationEnd(Animator animation) {
+                //tapper.setAlpha(0);
+                tapper.setVisibility(View.GONE);
+            }
+
+            public void onAnimationCancel(Animator animation) {
+            }
+
+            public void onAnimationRepeat(Animator animation) {
+            }
+        });
+        //animSet.play(anim3).after(anim2).after(anim1);
+        //animSet.playTogether(anim2,anim1);
+        animSet.play(anim2).with(anim1);
+        animSet.setDuration(500).start();
+    }
+    void winAnimation(View view,long soundDuration){
+        ignoreTaps=true;
+        for (int i=0;i<ImageViews.size();i++){
+            if (ImageViews.get(i)!=view) {
+                //ImageViews.get(i).setColorFilter(Color.parseColor("#990099cc"));
+                ImageViews.get(i).setAlpha(ImageViews.get(i).getAlpha()-0.8f);
             } else {
-                //imageButtons.get(i).bringToFront();
+                //ImageViews.get(i).bringToFront();
             }
         }
         AnimatorSet animSetB=new AnimatorSet();
@@ -598,7 +768,7 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
 
             @Override
             public void onAnimationEnd(Animator animator) {
-                askme();
+                askme(false);
             }
 
             @Override
@@ -611,14 +781,15 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
 
             }
         });
-        ObjectAnimator anim1B = ObjectAnimator.ofFloat(view, "scaleY", 1.9f,1);
-        anim1B.setDuration(1000);
-        anim1B.setRepeatCount(6);
+        ObjectAnimator anim1B = ObjectAnimator.ofFloat(view, "scaleY", 1,1.6f);
+        anim1B.setDuration(soundDuration/5);
+        anim1B.setRepeatCount(5);
         anim1B.setRepeatMode(ValueAnimator.REVERSE);
-        ObjectAnimator anim2B = ObjectAnimator.ofFloat(view, "scaleX", 1.9f,1);
-        anim2B.setDuration(1000);
-        anim2B.setRepeatCount(6);
+        ObjectAnimator anim2B = ObjectAnimator.ofFloat(view, "scaleX", 1,1.6f);
+        anim2B.setDuration(soundDuration/5);
+        anim2B.setRepeatCount(5);
         anim2B.setRepeatMode(ValueAnimator.REVERSE);
+        animSetB.setStartDelay(500);
         animSetB.play(anim1B).with(anim2B);
         animSetB.setInterpolator(new AccelerateDecelerateInterpolator());
         animSetB.start();
@@ -637,9 +808,7 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
                 if (!finish){
                     wrongAnimation(view, true,500);
                 } else{
-                    ignoreTaps = true;
-                    sayIt(0, cardId);
-                    ignoreTaps = false;
+                    askme(true);
                 }
             }
 
@@ -653,12 +822,13 @@ public class ShowMeActivity extends AppCompatActivity implements View.OnClickLis
 
             }
         });
-        ObjectAnimator anim1B = !finish?ObjectAnimator.ofFloat(view, "rotation", -10,10):ObjectAnimator.ofFloat(view, "rotation", 10,0);
+        ObjectAnimator anim1B = !finish?ObjectAnimator.ofFloat(view, "translationX", -dispWidth/10,dispWidth/10):ObjectAnimator.ofFloat(view, "translationX", dispWidth/10,0);
         if (!finish) {
             anim1B.setDuration(soundDuration/2-800); //800 - Для бесшовного
             anim1B.setRepeatCount(4);
             anim1B.setRepeatMode(ValueAnimator.REVERSE);
             animSetB.setInterpolator(new AccelerateDecelerateInterpolator());
+            animSetB.setStartDelay(500);
         } else {
             anim1B.setDuration(soundDuration);
             animSetB.setInterpolator(new DecelerateInterpolator());

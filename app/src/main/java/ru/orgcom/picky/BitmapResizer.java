@@ -34,7 +34,7 @@ public class BitmapResizer {
         int photoW = bmOptions.outWidth;
         int photoH = bmOptions.outHeight;
         // Determine how much to scale down the image
-        int scaleFactor = Math.max(photoW / 500, photoH / 500);
+        int scaleFactor = Math.min(photoW / 500, photoH / 500);
         if (scaleFactor <= 0)
             scaleFactor = 1;
         Log.d(TAG, "getResizedBitmap photoW="+photoW+", photoH="+photoH+", scaleFactor=" + scaleFactor);

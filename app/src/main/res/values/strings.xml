@@ -7,6 +7,10 @@
     <string name="action_settings">Сортировка</string>
     <string name="title_activity_card">Редактирование карточки</string>
 
+
+
+
+
     <!-- Strings related to Settings -->
 
     <!-- Example General settings -->
@@ -186,4 +190,5 @@
     <string name="title_activity_show_me">Контроль знаний</string>
     <string name="dummy_button">Dummy Button</string>
     <string name="dummy_content">DUMMY\nCONTENT</string>
+    <string name="title_activity_settings">Настройки</string>
 </resources>
